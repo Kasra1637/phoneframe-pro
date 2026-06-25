@@ -130,7 +130,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, videoMeta]);
+  }, [device, preset, scale, videoMeta, bg, customColor]);
 
   const exportVideo = async () => {
     const video = videoRef.current;
