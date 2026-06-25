@@ -54,10 +54,12 @@ function Index() {
   const [videoMeta, setVideoMeta] = useState<{ w: number; h: number; d: number } | null>(null);
   const [device, setDevice] = useState<DeviceId>("iphone");
   const [preset, setPreset] = useState<PresetId>("tiktok");
+  const [bg, setBg] = useState<BgId>("transparent");
+  const [customColor, setCustomColor] = useState("#0b0b0f");
   const [scale, setScale] = useState(0.82);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [downloads, setDownloads] = useState<{ url: string; name: string; size: number }[]>([]);
+  const [result, setResult] = useState<{ url: string; name: string; size: number; mime: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
