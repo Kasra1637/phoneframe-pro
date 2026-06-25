@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Vid phone" },
+      { name: "description", content: "Screen Showcase creates professional phone mockups from your screen recordings for social media." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Vid phone" },
+      { property: "og:description", content: "Screen Showcase creates professional phone mockups from your screen recordings for social media." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Vid phone" },
+      { name: "twitter:description", content: "Screen Showcase creates professional phone mockups from your screen recordings for social media." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/bcc31160-4d40-4452-bdf5-75fef8e45476/id-preview-23f559c6--31eebfb2-c4d0-411f-9454-8a09efb63def.lovable.app-1782416417917.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/bcc31160-4d40-4452-bdf5-75fef8e45476/id-preview-23f559c6--31eebfb2-c4d0-411f-9454-8a09efb63def.lovable.app-1782416417917.png" },
     ],
     links: [
       {
