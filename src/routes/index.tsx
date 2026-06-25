@@ -411,20 +411,30 @@ function Index() {
               crossOrigin="anonymous"
             />
 
-            {downloads.length > 0 && (
-              <div className="mt-6 space-y-2">
-                <div className="text-xs uppercase tracking-widest text-white/50">Exports</div>
-                {downloads.map((d) => (
-                  <a
-                    key={d.url}
-                    href={d.url}
-                    download={d.name}
-                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/90 transition hover:border-white/30"
-                  >
-                    <span className="truncate">{d.name}</span>
-                    <span className="ml-3 text-xs text-white/50">{(d.size / 1024 / 1024).toFixed(2)} MB ↓</span>
-                  </a>
-                ))}
+            {result && (
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs uppercase tracking-widest text-white/50">Your export — preview & download</div>
+                  <div className="text-xs text-white/40">
+                    {result.mime.includes("mp4") ? "MP4" : "WebM"} • {(result.size / 1024 / 1024).toFixed(2)} MB
+                  </div>
+                </div>
+                <video
+                  key={result.url}
+                  src={result.url}
+                  controls
+                  loop
+                  playsInline
+                  className="w-full rounded-xl border border-white/10 bg-black"
+                />
+                <a
+                  href={result.url}
+                  download={result.name}
+                  className="flex items-center justify-between rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90"
+                >
+                  <span className="truncate">Download {result.name}</span>
+                  <span className="ml-3 text-xs">↓</span>
+                </a>
               </div>
             )}
           </main>
