@@ -68,7 +68,7 @@ function Index() {
 
   const handleFile = (file: File) => {
     setError(null);
-    setDownloads([]);
+    setResult(null);
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
   };
