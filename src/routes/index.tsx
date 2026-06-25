@@ -115,6 +115,7 @@ function Index() {
 
     const draw = () => {
       ctx.clearRect(0, 0, cw, ch);
+      paintBackground(ctx, cw, ch, bg, customColor);
       // fit phone into canvas with user scale
       const fit = Math.min(cw / phoneW, ch / phoneH) * scale;
       const drawW = phoneW * fit;
