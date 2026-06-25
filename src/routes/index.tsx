@@ -299,8 +299,45 @@ function Index() {
             </section>
 
             <section>
+              <label className="text-xs uppercase tracking-widest text-white/50">4. Background</label>
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {BACKGROUNDS.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => setBg(b.id)}
+                    title={b.label}
+                    className={`group relative aspect-square overflow-hidden rounded-lg border transition ${
+                      bg === b.id ? "border-white ring-2 ring-white" : "border-white/15 hover:border-white/40"
+                    }`}
+                    style={
+                      b.preview === "transparent"
+                        ? {
+                            backgroundImage:
+                              "linear-gradient(45deg,#666 25%,transparent 25%),linear-gradient(-45deg,#666 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#666 75%),linear-gradient(-45deg,transparent 75%,#666 75%)",
+                            backgroundSize: "10px 10px",
+                            backgroundPosition: "0 0,0 5px,5px -5px,-5px 0",
+                            backgroundColor: "#222",
+                          }
+                        : b.preview === "custom"
+                          ? { background: customColor }
+                          : { background: b.preview }
+                    }
+                  />
+                ))}
+              </div>
+              {bg === "custom" && (
+                <input
+                  type="color"
+                  value={customColor}
+                  onChange={(e) => setCustomColor(e.target.value)}
+                  className="mt-2 h-9 w-full cursor-pointer rounded-lg bg-transparent"
+                />
+              )}
+            </section>
+
+            <section>
               <label className="text-xs uppercase tracking-widest text-white/50">
-                4. Phone size ({Math.round(scale * 100)}%)
+                5. Phone size ({Math.round(scale * 100)}%)
               </label>
               <input
                 type="range"
@@ -318,14 +355,20 @@ function Index() {
               onClick={exportVideo}
               className="w-full rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-40"
             >
-              {recording ? `Recording… ${Math.round(progress * 100)}%` : "Export transparent WebM"}
+              {recording
+                ? `Recording… ${Math.round(progress * 100)}%`
+                : bg === "transparent"
+                  ? "Export transparent WebM"
+                  : "Export MP4 (ready to post)"}
             </button>
             {error && <div className="rounded-lg bg-red-500/10 p-3 text-xs text-red-300">{error}</div>}
             <p className="text-[11px] leading-relaxed text-white/40">
-              Output is WebM with an alpha channel (VP9/VP8). TikTok and LinkedIn don't preserve transparency on upload —
-              the alpha is for compositing in CapCut, Premiere, After Effects, etc. before posting.
+              {bg === "transparent"
+                ? "Transparent WebM (VP9 alpha). Great for layering — note that TikTok and LinkedIn flatten alpha to black on upload. Pick a background to get a post-ready MP4 instead."
+                : "Recorded as MP4 (H.264) when your browser supports it, otherwise WebM. Upload directly to TikTok, LinkedIn, Reels, etc."}
             </p>
           </aside>
+
 
           {/* Preview */}
           <main className="rounded-3xl border border-white/10 bg-[length:20px_20px] p-6"
