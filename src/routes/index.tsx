@@ -38,15 +38,28 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
+type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom";
+const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
+  { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
+  { id: "white", label: "White", preview: "#ffffff" },
+  { id: "black", label: "Black", preview: "#000000" },
+  { id: "sunset", label: "Sunset", preview: "linear-gradient(135deg,#ff6a3d,#f9c846)" },
+  { id: "ocean", label: "Ocean", preview: "linear-gradient(135deg,#0ea5e9,#1e3a8a)" },
+  { id: "violet", label: "Violet", preview: "linear-gradient(135deg,#7c3aed,#ec4899)" },
+  { id: "custom", label: "Custom color", preview: "custom" },
+];
+
 function Index() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoMeta, setVideoMeta] = useState<{ w: number; h: number; d: number } | null>(null);
   const [device, setDevice] = useState<DeviceId>("iphone");
   const [preset, setPreset] = useState<PresetId>("tiktok");
+  const [bg, setBg] = useState<BgId>("transparent");
+  const [customColor, setCustomColor] = useState("#0b0b0f");
   const [scale, setScale] = useState(0.82);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [downloads, setDownloads] = useState<{ url: string; name: string; size: number }[]>([]);
+  const [result, setResult] = useState<{ url: string; name: string; size: number; mime: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -55,7 +68,7 @@ function Index() {
 
   const handleFile = (file: File) => {
     setError(null);
-    setDownloads([]);
+    setResult(null);
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
   };
@@ -102,6 +115,7 @@ function Index() {
 
     const draw = () => {
       ctx.clearRect(0, 0, cw, ch);
+      paintBackground(ctx, cw, ch, bg, customColor);
       // fit phone into canvas with user scale
       const fit = Math.min(cw / phoneW, ch / phoneH) * scale;
       const drawW = phoneW * fit;
@@ -116,7 +130,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, videoMeta]);
+  }, [device, preset, scale, videoMeta, bg, customColor]);
 
   const exportVideo = async () => {
     const video = videoRef.current;
@@ -126,16 +140,24 @@ function Index() {
     setError(null);
     setRecording(true);
     setProgress(0);
+    setResult(null);
 
     try {
-      // Find supported transparent webm codec
-      const candidates = [
-        "video/webm;codecs=vp9",
-        "video/webm;codecs=vp8",
-        "video/webm",
-      ];
+      // Pick best codec: opaque exports prefer mp4 (TikTok/LinkedIn-ready); transparent needs webm vp9 alpha
+      const transparent = bg === "transparent";
+      const candidates = transparent
+        ? ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
+        : [
+            "video/mp4;codecs=avc1.42E01F",
+            "video/mp4;codecs=h264",
+            "video/mp4",
+            "video/webm;codecs=vp9",
+            "video/webm;codecs=vp8",
+            "video/webm",
+          ];
       const mime = candidates.find((m) => MediaRecorder.isTypeSupported(m));
-      if (!mime) throw new Error("Your browser does not support WebM recording.");
+      if (!mime) throw new Error("Your browser does not support video recording.");
+      const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
 
       const stream = canvas.captureStream(30);
       const recorder = new MediaRecorder(stream, {
@@ -174,8 +196,8 @@ function Index() {
       const blob = await done;
       const url = URL.createObjectURL(blob);
       const pre = PRESETS.find((p) => p.id === preset)!;
-      const name = `mockreel-${device}-${pre.id}-${canvas.width}x${canvas.height}.webm`;
-      setDownloads((d) => [{ url, name, size: blob.size }, ...d]);
+      const name = `mockreel-${device}-${pre.id}-${canvas.width}x${canvas.height}.${ext}`;
+      setResult({ url, name, size: blob.size, mime });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -277,8 +299,45 @@ function Index() {
             </section>
 
             <section>
+              <label className="text-xs uppercase tracking-widest text-white/50">4. Background</label>
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {BACKGROUNDS.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => setBg(b.id)}
+                    title={b.label}
+                    className={`group relative aspect-square overflow-hidden rounded-lg border transition ${
+                      bg === b.id ? "border-white ring-2 ring-white" : "border-white/15 hover:border-white/40"
+                    }`}
+                    style={
+                      b.preview === "transparent"
+                        ? {
+                            backgroundImage:
+                              "linear-gradient(45deg,#666 25%,transparent 25%),linear-gradient(-45deg,#666 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#666 75%),linear-gradient(-45deg,transparent 75%,#666 75%)",
+                            backgroundSize: "10px 10px",
+                            backgroundPosition: "0 0,0 5px,5px -5px,-5px 0",
+                            backgroundColor: "#222",
+                          }
+                        : b.preview === "custom"
+                          ? { background: customColor }
+                          : { background: b.preview }
+                    }
+                  />
+                ))}
+              </div>
+              {bg === "custom" && (
+                <input
+                  type="color"
+                  value={customColor}
+                  onChange={(e) => setCustomColor(e.target.value)}
+                  className="mt-2 h-9 w-full cursor-pointer rounded-lg bg-transparent"
+                />
+              )}
+            </section>
+
+            <section>
               <label className="text-xs uppercase tracking-widest text-white/50">
-                4. Phone size ({Math.round(scale * 100)}%)
+                5. Phone size ({Math.round(scale * 100)}%)
               </label>
               <input
                 type="range"
@@ -296,14 +355,20 @@ function Index() {
               onClick={exportVideo}
               className="w-full rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-40"
             >
-              {recording ? `Recording… ${Math.round(progress * 100)}%` : "Export transparent WebM"}
+              {recording
+                ? `Recording… ${Math.round(progress * 100)}%`
+                : bg === "transparent"
+                  ? "Export transparent WebM"
+                  : "Export MP4 (ready to post)"}
             </button>
             {error && <div className="rounded-lg bg-red-500/10 p-3 text-xs text-red-300">{error}</div>}
             <p className="text-[11px] leading-relaxed text-white/40">
-              Output is WebM with an alpha channel (VP9/VP8). TikTok and LinkedIn don't preserve transparency on upload —
-              the alpha is for compositing in CapCut, Premiere, After Effects, etc. before posting.
+              {bg === "transparent"
+                ? "Transparent WebM (VP9 alpha). Great for layering — note that TikTok and LinkedIn flatten alpha to black on upload. Pick a background to get a post-ready MP4 instead."
+                : "Recorded as MP4 (H.264) when your browser supports it, otherwise WebM. Upload directly to TikTok, LinkedIn, Reels, etc."}
             </p>
           </aside>
+
 
           {/* Preview */}
           <main className="rounded-3xl border border-white/10 bg-[length:20px_20px] p-6"
@@ -346,20 +411,30 @@ function Index() {
               crossOrigin="anonymous"
             />
 
-            {downloads.length > 0 && (
-              <div className="mt-6 space-y-2">
-                <div className="text-xs uppercase tracking-widest text-white/50">Exports</div>
-                {downloads.map((d) => (
-                  <a
-                    key={d.url}
-                    href={d.url}
-                    download={d.name}
-                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/90 transition hover:border-white/30"
-                  >
-                    <span className="truncate">{d.name}</span>
-                    <span className="ml-3 text-xs text-white/50">{(d.size / 1024 / 1024).toFixed(2)} MB ↓</span>
-                  </a>
-                ))}
+            {result && (
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs uppercase tracking-widest text-white/50">Your export — preview & download</div>
+                  <div className="text-xs text-white/40">
+                    {result.mime.includes("mp4") ? "MP4" : "WebM"} • {(result.size / 1024 / 1024).toFixed(2)} MB
+                  </div>
+                </div>
+                <video
+                  key={result.url}
+                  src={result.url}
+                  controls
+                  loop
+                  playsInline
+                  className="w-full rounded-xl border border-white/10 bg-black"
+                />
+                <a
+                  href={result.url}
+                  download={result.name}
+                  className="flex items-center justify-between rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90"
+                >
+                  <span className="truncate">Download {result.name}</span>
+                  <span className="ml-3 text-xs">↓</span>
+                </a>
               </div>
             )}
           </main>
@@ -453,4 +528,37 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.lineTo(x, y + r);
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
+}
+
+function paintBackground(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  bg: BgId,
+  custom: string,
+) {
+  if (bg === "transparent") return;
+  let fill: string | CanvasGradient = custom;
+  if (bg === "white") fill = "#ffffff";
+  else if (bg === "black") fill = "#000000";
+  else if (bg === "sunset") {
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#ff6a3d");
+    g.addColorStop(1, "#f9c846");
+    fill = g;
+  } else if (bg === "ocean") {
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#0ea5e9");
+    g.addColorStop(1, "#1e3a8a");
+    fill = g;
+  } else if (bg === "violet") {
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#7c3aed");
+    g.addColorStop(1, "#ec4899");
+    fill = g;
+  } else if (bg === "custom") {
+    fill = custom;
+  }
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, 0, w, h);
 }
