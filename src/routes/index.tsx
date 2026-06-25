@@ -529,3 +529,36 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
 }
+
+function paintBackground(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  bg: BgId,
+  custom: string,
+) {
+  if (bg === "transparent") return;
+  let fill: string | CanvasGradient = custom;
+  if (bg === "white") fill = "#ffffff";
+  else if (bg === "black") fill = "#000000";
+  else if (bg === "sunset") {
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#ff6a3d");
+    g.addColorStop(1, "#f9c846");
+    fill = g;
+  } else if (bg === "ocean") {
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#0ea5e9");
+    g.addColorStop(1, "#1e3a8a");
+    fill = g;
+  } else if (bg === "violet") {
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#7c3aed");
+    g.addColorStop(1, "#ec4899");
+    fill = g;
+  } else if (bg === "custom") {
+    fill = custom;
+  }
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, 0, w, h);
+}
