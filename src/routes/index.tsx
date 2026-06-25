@@ -388,14 +388,15 @@ function Index() {
                   : ""}
               </span>
             </div>
-            <div className="flex min-h-[50vh] w-full items-center justify-center overflow-hidden rounded-2xl">
+            <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl">
               {videoUrl ? (
                 <canvas
                   ref={previewCanvasRef}
-                  className="block h-auto w-auto max-h-[70vh] max-w-full"
+                  className="max-h-full max-w-full"
+                  style={{ objectFit: "contain" }}
                 />
               ) : (
-                <div className="py-20 text-white/40">Upload a video to preview the mockup</div>
+                <div className="text-white/40">Upload a video to preview the mockup</div>
               )}
             </div>
 
