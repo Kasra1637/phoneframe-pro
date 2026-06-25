@@ -140,16 +140,24 @@ function Index() {
     setError(null);
     setRecording(true);
     setProgress(0);
+    setResult(null);
 
     try {
-      // Find supported transparent webm codec
-      const candidates = [
-        "video/webm;codecs=vp9",
-        "video/webm;codecs=vp8",
-        "video/webm",
-      ];
+      // Pick best codec: opaque exports prefer mp4 (TikTok/LinkedIn-ready); transparent needs webm vp9 alpha
+      const transparent = bg === "transparent";
+      const candidates = transparent
+        ? ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
+        : [
+            "video/mp4;codecs=avc1.42E01F",
+            "video/mp4;codecs=h264",
+            "video/mp4",
+            "video/webm;codecs=vp9",
+            "video/webm;codecs=vp8",
+            "video/webm",
+          ];
       const mime = candidates.find((m) => MediaRecorder.isTypeSupported(m));
-      if (!mime) throw new Error("Your browser does not support WebM recording.");
+      if (!mime) throw new Error("Your browser does not support video recording.");
+      const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
 
       const stream = canvas.captureStream(30);
       const recorder = new MediaRecorder(stream, {
@@ -188,8 +196,8 @@ function Index() {
       const blob = await done;
       const url = URL.createObjectURL(blob);
       const pre = PRESETS.find((p) => p.id === preset)!;
-      const name = `mockreel-${device}-${pre.id}-${canvas.width}x${canvas.height}.webm`;
-      setDownloads((d) => [{ url, name, size: blob.size }, ...d]);
+      const name = `mockreel-${device}-${pre.id}-${canvas.width}x${canvas.height}.${ext}`;
+      setResult({ url, name, size: blob.size, mime });
     } catch (e) {
       setError((e as Error).message);
     } finally {
