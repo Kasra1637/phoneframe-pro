@@ -450,7 +450,18 @@ function Index() {
                   src={result.url}
                   controls
                   loop
+                  muted
                   playsInline
+                  preload="auto"
+                  autoPlay
+                  onLoadedMetadata={(e) => {
+                    const el = e.currentTarget;
+                    try { el.currentTime = 0.001; } catch {}
+                  }}
+                  onLoadedData={(e) => {
+                    const el = e.currentTarget;
+                    try { el.currentTime = 0.001; } catch {}
+                  }}
                   className="w-full rounded-xl border border-white/10 bg-black"
                 />
                 <a
