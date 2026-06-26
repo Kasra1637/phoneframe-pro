@@ -120,14 +120,11 @@ function Index() {
     const dev = DEVICES.find((d) => d.id === device)!;
     const pre = PRESETS.find((p) => p.id === preset)!;
 
-    // Phone aspect: derive from video (assume portrait screen recording = phone aspect)
-    const screenAspect = videoMeta.w / videoMeta.h;
-    // Phone outer = screen + bezel
-    const bezel = dev.screenInset;
-    const phoneScreenW = videoMeta.w;
-    const phoneScreenH = videoMeta.h;
-    const phoneW = phoneScreenW + bezel * 2 * (phoneScreenW / 400);
-    const phoneH = phoneScreenH + bezel * 2 * (phoneScreenH / 400);
+    // Phone uses its own realistic body aspect, not the video's aspect.
+    // Base height in pixels; width derived from device aspect.
+    const phoneH = 1800;
+    const phoneW = phoneH * dev.aspect;
+
 
     let cw = pre.w;
     let ch = pre.h;
