@@ -77,7 +77,7 @@ const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
 function Index() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoMeta, setVideoMeta] = useState<{ w: number; h: number; d: number } | null>(null);
-  const [device, setDevice] = useState<DeviceId>("iphone");
+  const [device, setDevice] = useState<DeviceId>("s24");
   const [preset, setPreset] = useState<PresetId>("tiktok");
   const [bg, setBg] = useState<BgId>("transparent");
   const [customColor, setCustomColor] = useState("#0b0b0f");
