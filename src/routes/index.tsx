@@ -21,13 +21,36 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type DeviceId = "iphone" | "pixel";
-type PresetId = "tiktok" | "linkedin_square" | "linkedin_landscape" | "story" | "youtube" | "source";
+type DeviceId =
+  | "s24"
+  | "s24_ultra"
+  | "note20"
+  | "zflip"
+  | "lg_v60"
+  | "lg_velvet"
+  | "lg_g8";
 
-const DEVICES: { id: DeviceId; label: string; bezel: string; screenInset: number; radius: number }[] = [
-  { id: "iphone", label: "iPhone (Black)", bezel: "#0a0a0a", screenInset: 18, radius: 110 },
-  { id: "pixel", label: "Google Pixel (Graphite)", bezel: "#1c1c1e", screenInset: 14, radius: 70 },
+type DeviceSpec = {
+  id: DeviceId;
+  label: string;
+  body: string; // bezel/frame color
+  rail: string; // side metal rail color
+  aspect: number; // width / height of phone body
+  radiusRatio: number; // corner radius as fraction of width
+  bezelRatio: number; // screen inset as fraction of width
+  camera: "punch-center" | "punch-left" | "notch-wide" | "notch-drop" | "punch-corner";
+};
+
+const DEVICES: DeviceSpec[] = [
+  { id: "s24",       label: "Samsung Galaxy S24",       body: "#0d0d10", rail: "#3a3a3f", aspect: 0.462, radiusRatio: 0.085, bezelRatio: 0.022, camera: "punch-center" },
+  { id: "s24_ultra", label: "Samsung Galaxy S24 Ultra", body: "#15161a", rail: "#46474c", aspect: 0.470, radiusRatio: 0.055, bezelRatio: 0.020, camera: "punch-center" },
+  { id: "note20",    label: "Samsung Galaxy Note 20",   body: "#111114", rail: "#2f3035", aspect: 0.455, radiusRatio: 0.060, bezelRatio: 0.024, camera: "punch-center" },
+  { id: "zflip",     label: "Samsung Galaxy Z Flip5",   body: "#1a1a1f", rail: "#3d3d44", aspect: 0.438, radiusRatio: 0.110, bezelRatio: 0.026, camera: "punch-center" },
+  { id: "lg_v60",    label: "LG V60 ThinQ",             body: "#0b0c10", rail: "#34353a", aspect: 0.460, radiusRatio: 0.070, bezelRatio: 0.030, camera: "notch-drop" },
+  { id: "lg_velvet", label: "LG Velvet",                body: "#101218", rail: "#3a3c44", aspect: 0.448, radiusRatio: 0.090, bezelRatio: 0.028, camera: "notch-drop" },
+  { id: "lg_g8",     label: "LG G8 ThinQ",              body: "#0e0e12", rail: "#33343a", aspect: 0.472, radiusRatio: 0.075, bezelRatio: 0.034, camera: "notch-wide" },
 ];
+
 
 const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string }[] = [
   { id: "tiktok", label: "TikTok / Reels / Shorts", w: 1080, h: 1920, note: "9:16" },
