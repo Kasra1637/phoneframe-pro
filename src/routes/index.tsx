@@ -185,9 +185,37 @@ function Index() {
       const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
 
       const stream = canvas.captureStream(30);
+
+      // Mix the uploaded video's audio into the recording via WebAudio
+      try {
+        if (!audioCtxRef.current) {
+          const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
+          audioCtxRef.current = new Ctx();
+        }
+        const ac = audioCtxRef.current!;
+        if (ac.state === "suspended") await ac.resume();
+        if (!audioSrcRef.current) {
+          // createMediaElementSource can only be called once per element
+          audioSrcRef.current = ac.createMediaElementSource(video);
+        }
+        if (!audioDestRef.current) {
+          audioDestRef.current = ac.createMediaStreamDestination();
+          audioSrcRef.current.connect(audioDestRef.current);
+          // Also route to speakers so the user can hear during export
+          audioSrcRef.current.connect(ac.destination);
+        }
+        for (const track of audioDestRef.current.stream.getAudioTracks()) {
+          stream.addTrack(track);
+        }
+      } catch (audioErr) {
+        // Audio capture is best-effort; continue with video-only if it fails
+        console.warn("Audio capture failed:", audioErr);
+      }
+
       const recorder = new MediaRecorder(stream, {
         mimeType: mime,
         videoBitsPerSecond: 8_000_000,
+        audioBitsPerSecond: 192_000,
       });
       const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -197,7 +225,8 @@ function Index() {
       });
 
       video.currentTime = 0;
-      video.muted = true;
+      video.muted = false;
+      video.volume = 1;
       await video.play();
       recorder.start();
 
