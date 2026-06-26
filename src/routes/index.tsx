@@ -274,45 +274,55 @@ function Index() {
             </section>
 
             <section>
-              <label className="text-xs uppercase tracking-widest text-white/50">2. Device frame</label>
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <label htmlFor="device-select" className="text-xs uppercase tracking-widest text-white/50">
+                2. Device frame
+              </label>
+              <select
+                id="device-select"
+                value={device}
+                onChange={(e) => setDevice(e.target.value as DeviceId)}
+                className="mt-3 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
+                style={{
+                  backgroundImage:
+                    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M6 8L0 0h12z'/></svg>\")",
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 12px center",
+                  paddingRight: "32px",
+                }}
+              >
                 {DEVICES.map((d) => (
-                  <button
-                    key={d.id}
-                    onClick={() => setDevice(d.id)}
-                    className={`rounded-xl border px-3 py-3 text-left text-sm transition ${
-                      device === d.id
-                        ? "border-white bg-white text-black"
-                        : "border-white/10 bg-white/[0.02] text-white/80 hover:border-white/30"
-                    }`}
-                  >
+                  <option key={d.id} value={d.id} className="bg-[#1a1a22] text-white">
                     {d.label}
-                  </button>
+                  </option>
                 ))}
-              </div>
+              </select>
             </section>
 
             <section>
-              <label className="text-xs uppercase tracking-widest text-white/50">3. Platform preset</label>
-              <div className="mt-3 grid gap-2">
+              <label htmlFor="preset-select" className="text-xs uppercase tracking-widest text-white/50">
+                3. Platform preset
+              </label>
+              <select
+                id="preset-select"
+                value={preset}
+                onChange={(e) => setPreset(e.target.value as PresetId)}
+                className="mt-3 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
+                style={{
+                  backgroundImage:
+                    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M6 8L0 0h12z'/></svg>\")",
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 12px center",
+                  paddingRight: "32px",
+                }}
+              >
                 {PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setPreset(p.id)}
-                    className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition ${
-                      preset === p.id
-                        ? "border-white bg-white text-black"
-                        : "border-white/10 bg-white/[0.02] text-white/80 hover:border-white/30"
-                    }`}
-                  >
-                    <span>{p.label}</span>
-                    <span className={preset === p.id ? "text-black/60" : "text-white/40"}>
-                      {p.id === "source" ? "auto" : `${p.w}×${p.h}`}
-                    </span>
-                  </button>
+                  <option key={p.id} value={p.id} className="bg-[#1a1a22] text-white">
+                    {p.label} — {p.id === "source" ? "auto" : `${p.w}×${p.h}`}
+                  </option>
                 ))}
-              </div>
+              </select>
             </section>
+
 
             <section>
               <label className="text-xs uppercase tracking-widest text-white/50">4. Background</label>
