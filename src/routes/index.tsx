@@ -51,8 +51,10 @@ const DEVICES: DeviceSpec[] = [
   { id: "lg_g8",     label: "LG G8 ThinQ",              body: "#0e0e12", rail: "#33343a", aspect: 0.472, radiusRatio: 0.075, bezelRatio: 0.034, camera: "notch-wide" },
 ];
 
+type PresetId = "tiktok" | "linkedin_square" | "linkedin_landscape" | "story" | "youtube" | "source";
 
 const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string }[] = [
+
   { id: "tiktok", label: "TikTok / Reels / Shorts", w: 1080, h: 1920, note: "9:16" },
   { id: "story", label: "Instagram Story", w: 1080, h: 1920, note: "9:16" },
   { id: "linkedin_square", label: "LinkedIn Square", w: 1200, h: 1200, note: "1:1" },
