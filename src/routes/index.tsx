@@ -466,71 +466,140 @@ function drawPhone(
   y: number,
   w: number,
   h: number,
-  dev: { id: DeviceId; bezel: string; radius: number },
+  dev: DeviceSpec,
   video: HTMLVideoElement,
 ) {
-  const radius = Math.min(w, h) * (dev.id === "iphone" ? 0.11 : 0.075);
-  const bezel = Math.min(w, h) * 0.035;
+  const radius = w * dev.radiusRatio;
+  const bezel = w * dev.bezelRatio;
 
   ctx.save();
-  // outer body
+
+  // Soft drop shadow under phone
+  ctx.save();
   roundRect(ctx, x, y, w, h, radius);
-  ctx.fillStyle = dev.bezel;
-  ctx.shadowColor = "rgba(0,0,0,0.6)";
-  ctx.shadowBlur = Math.min(w, h) * 0.04;
-  ctx.shadowOffsetY = Math.min(w, h) * 0.01;
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = w * 0.10;
+  ctx.shadowOffsetY = w * 0.04;
+  ctx.fillStyle = "#000";
   ctx.fill();
-  ctx.shadowColor = "transparent";
+  ctx.restore();
 
-  // subtle metallic edge
-  ctx.lineWidth = Math.max(1, bezel * 0.15);
-  ctx.strokeStyle = "rgba(255,255,255,0.08)";
-  ctx.stroke();
+  // Outer rail (metal frame) — slight gradient for realism
+  const railGrad = ctx.createLinearGradient(x, y, x + w, y);
+  railGrad.addColorStop(0, shade(dev.rail, -25));
+  railGrad.addColorStop(0.15, dev.rail);
+  railGrad.addColorStop(0.5, shade(dev.rail, 20));
+  railGrad.addColorStop(0.85, dev.rail);
+  railGrad.addColorStop(1, shade(dev.rail, -25));
+  roundRect(ctx, x, y, w, h, radius);
+  ctx.fillStyle = railGrad;
+  ctx.fill();
 
-  // screen area
-  const sx = x + bezel;
-  const sy = y + bezel;
-  const sw = w - bezel * 2;
-  const sh = h - bezel * 2;
-  const sr = Math.max(0, radius - bezel * 0.9);
+  // Inner body (slightly inset, darker)
+  const bx = x + w * 0.012;
+  const by = y + w * 0.012;
+  const bw = w - w * 0.024;
+  const bh = h - w * 0.024;
+  const br = Math.max(0, radius - w * 0.012);
+  roundRect(ctx, bx, by, bw, bh, br);
+  ctx.fillStyle = dev.body;
+  ctx.fill();
+
+  // Subtle highlight on top edge
+  ctx.save();
+  roundRect(ctx, bx, by, bw, bh, br);
+  ctx.clip();
+  const hi = ctx.createLinearGradient(0, by, 0, by + bh * 0.25);
+  hi.addColorStop(0, "rgba(255,255,255,0.10)");
+  hi.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = hi;
+  ctx.fillRect(bx, by, bw, bh * 0.25);
+  ctx.restore();
+
+  // Side buttons (right: power; left: volume up/down)
+  ctx.fillStyle = shade(dev.rail, -10);
+  // Power
+  ctx.fillRect(x + w - w * 0.008, y + h * 0.18, w * 0.012, h * 0.06);
+  // Volume up
+  ctx.fillRect(x - w * 0.004, y + h * 0.16, w * 0.012, h * 0.05);
+  // Volume down
+  ctx.fillRect(x - w * 0.004, y + h * 0.235, w * 0.012, w * 0.06);
+
+  // Screen area
+  const sx = bx + bezel;
+  const sy = by + bezel;
+  const sw = bw - bezel * 2;
+  const sh = bh - bezel * 2;
+  const sr = Math.max(0, br - bezel * 0.85);
   ctx.save();
   roundRect(ctx, sx, sy, sw, sh, sr);
   ctx.clip();
   ctx.fillStyle = "#000";
   ctx.fillRect(sx, sy, sw, sh);
 
-  // draw video to fill screen (cover)
+  // Video fills the screen (cover)
   if (video.readyState >= 2) {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    const scale = Math.max(sw / vw, sh / vh);
-    const dw = vw * scale;
-    const dh = vh * scale;
+    const s = Math.max(sw / vw, sh / vh);
+    const dw = vw * s;
+    const dh = vh * s;
     ctx.drawImage(video, sx + (sw - dw) / 2, sy + (sh - dh) / 2, dw, dh);
   }
-  ctx.restore();
 
-  // device chrome on top of screen
-  if (dev.id === "iphone") {
-    // Dynamic Island
-    const islandW = sw * 0.32;
-    const islandH = sh * 0.035;
-    const ix = sx + (sw - islandW) / 2;
-    const iy = sy + sh * 0.018;
-    roundRect(ctx, ix, iy, islandW, islandH, islandH / 2);
-    ctx.fillStyle = "#000";
-    ctx.fill();
-  } else {
-    // Pixel: punch-hole camera centered top
-    const r = sh * 0.012;
+  // Camera cutout, drawn inside the clipped screen
+  ctx.fillStyle = "#000";
+  if (dev.camera === "punch-center") {
+    const r = sw * 0.022;
     ctx.beginPath();
-    ctx.arc(sx + sw / 2, sy + sh * 0.025, r, 0, Math.PI * 2);
-    ctx.fillStyle = "#000";
+    ctx.arc(sx + sw / 2, sy + r * 1.7, r, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (dev.camera === "punch-left") {
+    const r = sw * 0.022;
+    ctx.beginPath();
+    ctx.arc(sx + sw * 0.12, sy + r * 1.7, r, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (dev.camera === "punch-corner") {
+    const r = sw * 0.024;
+    ctx.beginPath();
+    ctx.arc(sx + sw - r * 2.2, sy + r * 1.7, r, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (dev.camera === "notch-drop") {
+    const r = sw * 0.028;
+    roundRect(ctx, sx + sw / 2 - r, sy, r * 2, r * 1.6, r);
+    ctx.fill();
+  } else if (dev.camera === "notch-wide") {
+    const nw = sw * 0.34;
+    const nh = sh * 0.028;
+    roundRect(ctx, sx + (sw - nw) / 2, sy, nw, nh, nh * 0.6);
     ctx.fill();
   }
+
+  ctx.restore();
+
+  // Glass reflection sheen across screen edge
+  ctx.save();
+  roundRect(ctx, sx, sy, sw, sh, sr);
+  ctx.clip();
+  const sheen = ctx.createLinearGradient(sx, sy, sx + sw * 0.6, sy + sh * 0.6);
+  sheen.addColorStop(0, "rgba(255,255,255,0.06)");
+  sheen.addColorStop(0.4, "rgba(255,255,255,0)");
+  ctx.fillStyle = sheen;
+  ctx.fillRect(sx, sy, sw, sh);
+  ctx.restore();
 
   ctx.restore();
 }
+
+function shade(hex: string, percent: number) {
+  const h = hex.replace("#", "");
+  const num = parseInt(h, 16);
+  const r = Math.max(0, Math.min(255, (num >> 16) + percent));
+  const g = Math.max(0, Math.min(255, ((num >> 8) & 0xff) + percent));
+  const b = Math.max(0, Math.min(255, (num & 0xff) + percent));
+  return `rgb(${r},${g},${b})`;
+}
+
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
