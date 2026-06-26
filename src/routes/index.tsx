@@ -218,14 +218,8 @@ function Index() {
       <div className="relative mx-auto max-w-7xl px-6 py-10">
         <header className="mb-10">
           <div className="text-xs uppercase tracking-[0.3em] text-white/50">MockReel</div>
-          <h1 className="mt-2 text-4xl font-semibold tracking-tight md:text-5xl">
-            Drop a screen recording. Get a transparent phone mockup video.
-          </h1>
-          <p className="mt-3 max-w-2xl text-white/60">
-            Upload your phone screen recording, choose a device frame, pick a platform preset, and export a transparent
-            WebM ready for TikTok, LinkedIn, Reels, and more.
-          </p>
         </header>
+
 
         <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
           {/* Controls */}
