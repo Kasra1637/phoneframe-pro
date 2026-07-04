@@ -151,7 +151,7 @@ function Index() {
       const drawH = phoneH * fit;
       const x = (cw - drawW) / 2;
       const y = (ch - drawH) / 2;
-      drawPhone(ctx, x, y, drawW, drawH, dev, video);
+      drawPhone(ctx, x, y, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
       rafRef.current = requestAnimationFrame(draw);
     };
     rafRef.current = requestAnimationFrame(draw);
