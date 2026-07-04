@@ -525,6 +525,10 @@ function drawPhone(
   h: number,
   dev: DeviceSpec,
   video: HTMLVideoElement,
+  videoFit: "cover" | "contain" | "fill",
+  videoScale: number,
+  videoOffsetX: number,
+  videoOffsetY: number,
 ) {
   const radius = w * dev.radiusRatio;
   const bezel = w * dev.bezelRatio;
