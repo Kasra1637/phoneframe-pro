@@ -159,7 +159,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, videoMeta, bg, customColor]);
+  }, [device, preset, scale, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY]);
 
   const exportVideo = async () => {
     const video = videoRef.current;
