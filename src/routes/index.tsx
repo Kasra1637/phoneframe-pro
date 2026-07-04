@@ -412,6 +412,103 @@ function Index() {
               />
             </section>
 
+            {videoUrl && (
+              <section className="space-y-5 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs uppercase tracking-widest text-white/50">6. Video crop</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVideoFit("cover");
+                      setVideoScale(1);
+                      setVideoOffsetX(0);
+                      setVideoOffsetY(0);
+                    }}
+                    className="text-[11px] text-white/50 transition hover:text-white"
+                  >
+                    Reset
+                  </button>
+                </div>
+
+                <div>
+                  <label htmlFor="video-fit" className="text-[11px] text-white/60">
+                    Fit mode
+                  </label>
+                  <select
+                    id="video-fit"
+                    value={videoFit}
+                    onChange={(e) => setVideoFit(e.target.value as "cover" | "contain" | "fill")}
+                    className="mt-1.5 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
+                    style={{
+                      backgroundImage:
+                        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M6 8L0 0h12z'/></svg>\")",
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 10px center",
+                      paddingRight: "28px",
+                    }}
+                  >
+                    <option value="cover" className="bg-[#1a1a22] text-white">
+                      Cover — fill screen, crop edges
+                    </option>
+                    <option value="contain" className="bg-[#1a1a22] text-white">
+                      Contain — fit entire video
+                    </option>
+                    <option value="fill" className="bg-[#1a1a22] text-white">
+                      Fill — stretch to screen
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="flex justify-between text-[11px] text-white/60">
+                    <span>Zoom</span>
+                    <span>{videoScale.toFixed(2)}x</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={3}
+                    step={0.01}
+                    value={videoScale}
+                    onChange={(e) => setVideoScale(Number(e.target.value))}
+                    className="mt-1.5 w-full accent-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex justify-between text-[11px] text-white/60">
+                    <span>Horizontal offset</span>
+                    <span>{videoOffsetX}%</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={-100}
+                    max={100}
+                    step={1}
+                    value={videoOffsetX}
+                    onChange={(e) => setVideoOffsetX(Number(e.target.value))}
+                    className="mt-1.5 w-full accent-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex justify-between text-[11px] text-white/60">
+                    <span>Vertical offset</span>
+                    <span>{videoOffsetY}%</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={-100}
+                    max={100}
+                    step={1}
+                    value={videoOffsetY}
+                    onChange={(e) => setVideoOffsetY(Number(e.target.value))}
+                    className="mt-1.5 w-full accent-white"
+                  />
+                </div>
+              </section>
+            )}
+
             <button
               disabled={!videoUrl || recording}
               onClick={exportVideo}
