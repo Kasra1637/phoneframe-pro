@@ -82,6 +82,10 @@ function Index() {
   const [bg, setBg] = useState<BgId>("transparent");
   const [customColor, setCustomColor] = useState("#0b0b0f");
   const [scale, setScale] = useState(0.82);
+  const [videoFit, setVideoFit] = useState<"cover" | "contain" | "fill">("cover");
+  const [videoScale, setVideoScale] = useState(1);
+  const [videoOffsetX, setVideoOffsetX] = useState(0);
+  const [videoOffsetY, setVideoOffsetY] = useState(0);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ url: string; name: string; size: number; mime: string } | null>(null);
@@ -147,7 +151,7 @@ function Index() {
       const drawH = phoneH * fit;
       const x = (cw - drawW) / 2;
       const y = (ch - drawH) / 2;
-      drawPhone(ctx, x, y, drawW, drawH, dev, video);
+      drawPhone(ctx, x, y, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
       rafRef.current = requestAnimationFrame(draw);
     };
     rafRef.current = requestAnimationFrame(draw);
@@ -155,7 +159,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, videoMeta, bg, customColor]);
+  }, [device, preset, scale, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY]);
 
   const exportVideo = async () => {
     const video = videoRef.current;
@@ -408,6 +412,103 @@ function Index() {
               />
             </section>
 
+            {videoUrl && (
+              <section className="space-y-5 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs uppercase tracking-widest text-white/50">6. Video crop</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVideoFit("cover");
+                      setVideoScale(1);
+                      setVideoOffsetX(0);
+                      setVideoOffsetY(0);
+                    }}
+                    className="text-[11px] text-white/50 transition hover:text-white"
+                  >
+                    Reset
+                  </button>
+                </div>
+
+                <div>
+                  <label htmlFor="video-fit" className="text-[11px] text-white/60">
+                    Fit mode
+                  </label>
+                  <select
+                    id="video-fit"
+                    value={videoFit}
+                    onChange={(e) => setVideoFit(e.target.value as "cover" | "contain" | "fill")}
+                    className="mt-1.5 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
+                    style={{
+                      backgroundImage:
+                        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M6 8L0 0h12z'/></svg>\")",
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 10px center",
+                      paddingRight: "28px",
+                    }}
+                  >
+                    <option value="cover" className="bg-[#1a1a22] text-white">
+                      Cover — fill screen, crop edges
+                    </option>
+                    <option value="contain" className="bg-[#1a1a22] text-white">
+                      Contain — fit entire video
+                    </option>
+                    <option value="fill" className="bg-[#1a1a22] text-white">
+                      Fill — stretch to screen
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="flex justify-between text-[11px] text-white/60">
+                    <span>Zoom</span>
+                    <span>{videoScale.toFixed(2)}x</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={3}
+                    step={0.01}
+                    value={videoScale}
+                    onChange={(e) => setVideoScale(Number(e.target.value))}
+                    className="mt-1.5 w-full accent-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex justify-between text-[11px] text-white/60">
+                    <span>Horizontal offset</span>
+                    <span>{videoOffsetX}%</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={-100}
+                    max={100}
+                    step={1}
+                    value={videoOffsetX}
+                    onChange={(e) => setVideoOffsetX(Number(e.target.value))}
+                    className="mt-1.5 w-full accent-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex justify-between text-[11px] text-white/60">
+                    <span>Vertical offset</span>
+                    <span>{videoOffsetY}%</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={-100}
+                    max={100}
+                    step={1}
+                    value={videoOffsetY}
+                    onChange={(e) => setVideoOffsetY(Number(e.target.value))}
+                    className="mt-1.5 w-full accent-white"
+                  />
+                </div>
+              </section>
+            )}
+
             <button
               disabled={!videoUrl || recording}
               onClick={exportVideo}
@@ -521,6 +622,10 @@ function drawPhone(
   h: number,
   dev: DeviceSpec,
   video: HTMLVideoElement,
+  videoFit: "cover" | "contain" | "fill",
+  videoScale: number,
+  videoOffsetX: number,
+  videoOffsetY: number,
 ) {
   const radius = w * dev.radiusRatio;
   const bezel = w * dev.bezelRatio;
@@ -590,14 +695,34 @@ function drawPhone(
   ctx.fillStyle = "#000";
   ctx.fillRect(sx, sy, sw, sh);
 
-  // Video fills the screen (cover)
+  // Video inside the screen
   if (video.readyState >= 2) {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    const s = Math.max(sw / vw, sh / vh);
+
+    let baseScale: number;
+    if (videoFit === "contain") {
+      baseScale = Math.min(sw / vw, sh / vh);
+    } else if (videoFit === "fill") {
+      baseScale = Math.max(sw / vw, sh / vh);
+    } else {
+      baseScale = Math.max(sw / vw, sh / vh);
+    }
+
+    const s = baseScale * videoScale;
     const dw = vw * s;
     const dh = vh * s;
-    ctx.drawImage(video, sx + (sw - dw) / 2, sy + (sh - dh) / 2, dw, dh);
+
+    // Maximum offset so the video edge never goes past the screen edge
+    const maxOffX = Math.max(0, (dw - sw) / 2);
+    const maxOffY = Math.max(0, (dh - sh) / 2);
+    const offX = (videoOffsetX / 100) * maxOffX;
+    const offY = (videoOffsetY / 100) * maxOffY;
+
+    const dx = sx + (sw - dw) / 2 + offX;
+    const dy = sy + (sh - dh) / 2 + offY;
+
+    ctx.drawImage(video, dx, dy, dw, dh);
   }
 
   // Camera cutout, drawn inside the clipped screen
