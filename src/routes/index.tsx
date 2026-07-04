@@ -551,8 +551,33 @@ function Index() {
               {videoUrl ? (
                 <canvas
                   ref={previewCanvasRef}
-                  className="max-h-full max-w-full"
+                  className="max-h-full max-w-full cursor-grab active:cursor-grabbing touch-none"
                   style={{ objectFit: "contain" }}
+                  onPointerDown={(e) => {
+                    const el = e.currentTarget;
+                    el.setPointerCapture(e.pointerId);
+                    const rect = el.getBoundingClientRect();
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const startOffX = videoOffsetX;
+                    const startOffY = videoOffsetY;
+                    const move = (ev: PointerEvent) => {
+                      const dx = ((ev.clientX - startX) / rect.width) * 200;
+                      const dy = ((ev.clientY - startY) / rect.height) * 200;
+                      setVideoOffsetX(Math.max(-100, Math.min(100, Math.round(startOffX + dx))));
+                      setVideoOffsetY(Math.max(-100, Math.min(100, Math.round(startOffY + dy))));
+                    };
+                    const up = () => {
+                      window.removeEventListener("pointermove", move);
+                      window.removeEventListener("pointerup", up);
+                    };
+                    window.addEventListener("pointermove", move);
+                    window.addEventListener("pointerup", up);
+                  }}
+                  onWheel={(e) => {
+                    e.preventDefault();
+                    setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
+                  }}
                 />
               ) : (
                 <div className="text-white/40">Upload a video to preview the mockup</div>
