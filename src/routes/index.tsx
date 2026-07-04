@@ -598,14 +598,34 @@ function drawPhone(
   ctx.fillStyle = "#000";
   ctx.fillRect(sx, sy, sw, sh);
 
-  // Video fills the screen (cover)
+  // Video inside the screen
   if (video.readyState >= 2) {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    const s = Math.max(sw / vw, sh / vh);
+
+    let baseScale: number;
+    if (videoFit === "contain") {
+      baseScale = Math.min(sw / vw, sh / vh);
+    } else if (videoFit === "fill") {
+      baseScale = Math.max(sw / vw, sh / vh);
+    } else {
+      baseScale = Math.max(sw / vw, sh / vh);
+    }
+
+    const s = baseScale * videoScale;
     const dw = vw * s;
     const dh = vh * s;
-    ctx.drawImage(video, sx + (sw - dw) / 2, sy + (sh - dh) / 2, dw, dh);
+
+    // Maximum offset so the video edge never goes past the screen edge
+    const maxOffX = Math.max(0, (dw - sw) / 2);
+    const maxOffY = Math.max(0, (dh - sh) / 2);
+    const offX = (videoOffsetX / 100) * maxOffX;
+    const offY = (videoOffsetY / 100) * maxOffY;
+
+    const dx = sx + (sw - dw) / 2 + offX;
+    const dy = sy + (sh - dh) / 2 + offY;
+
+    ctx.drawImage(video, dx, dy, dw, dh);
   }
 
   // Camera cutout, drawn inside the clipped screen
