@@ -82,6 +82,7 @@ function Index() {
   const [bg, setBg] = useState<BgId>("transparent");
   const [customColor, setCustomColor] = useState("#0b0b0f");
   const [scale, setScale] = useState(0.82);
+  const [mockupStretchY, setMockupStretchY] = useState(1);
   const [videoFit, setVideoFit] = useState<"cover" | "contain" | "fill">("cover");
   const [videoScale, setVideoScale] = useState(1);
   const [videoOffsetX, setVideoOffsetX] = useState(0);
