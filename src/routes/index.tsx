@@ -82,6 +82,7 @@ function Index() {
   const [bg, setBg] = useState<BgId>("transparent");
   const [customColor, setCustomColor] = useState("#0b0b0f");
   const [scale, setScale] = useState(0.82);
+  const [mockupStretchY, setMockupStretchY] = useState(1);
   const [videoFit, setVideoFit] = useState<"cover" | "contain" | "fill">("cover");
   const [videoScale, setVideoScale] = useState(1);
   const [videoOffsetX, setVideoOffsetX] = useState(0);
@@ -129,7 +130,8 @@ function Index() {
 
     // Phone uses its own realistic body aspect, not the video's aspect.
     // Base height in pixels; width derived from device aspect.
-    const phoneH = 1800;
+    // mockupStretchY lets the user stretch the mockup vertically to fit the uploaded video.
+    const phoneH = 1800 * mockupStretchY;
     const phoneW = phoneH * dev.aspect;
 
 
@@ -159,7 +161,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY]);
 
   const exportVideo = async () => {
     const video = videoRef.current;
@@ -412,10 +414,37 @@ function Index() {
               />
             </section>
 
+            <section>
+              <div className="flex items-center justify-between">
+                <label className="text-xs uppercase tracking-widest text-white/50">
+                  6. Mockup height ({Math.round(mockupStretchY * 100)}%)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setMockupStretchY(1)}
+                  className="text-[11px] text-white/50 transition hover:text-white"
+                >
+                  Reset
+                </button>
+              </div>
+              <input
+                type="range"
+                min={0.5}
+                max={2}
+                step={0.01}
+                value={mockupStretchY}
+                onChange={(e) => setMockupStretchY(Number(e.target.value))}
+                className="mt-3 w-full accent-white"
+              />
+              <p className="mt-2 text-[11px] leading-relaxed text-white/40">
+                Stretch or shrink the phone mockup vertically so it matches the uploaded video's aspect ratio.
+              </p>
+            </section>
+
             {videoUrl && (
               <section className="space-y-5 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs uppercase tracking-widest text-white/50">6. Video crop</label>
+                  <label className="text-xs uppercase tracking-widest text-white/50">7. Video crop</label>
                   <button
                     type="button"
                     onClick={() => {
