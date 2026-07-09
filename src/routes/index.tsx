@@ -444,7 +444,7 @@ function Index() {
             {videoUrl && (
               <section className="space-y-5 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs uppercase tracking-widest text-white/50">6. Video crop</label>
+                  <label className="text-xs uppercase tracking-widest text-white/50">7. Video crop</label>
                   <button
                     type="button"
                     onClick={() => {
