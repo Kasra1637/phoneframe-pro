@@ -414,6 +414,33 @@ function Index() {
               />
             </section>
 
+            <section>
+              <div className="flex items-center justify-between">
+                <label className="text-xs uppercase tracking-widest text-white/50">
+                  6. Mockup height ({Math.round(mockupStretchY * 100)}%)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setMockupStretchY(1)}
+                  className="text-[11px] text-white/50 transition hover:text-white"
+                >
+                  Reset
+                </button>
+              </div>
+              <input
+                type="range"
+                min={0.5}
+                max={2}
+                step={0.01}
+                value={mockupStretchY}
+                onChange={(e) => setMockupStretchY(Number(e.target.value))}
+                className="mt-3 w-full accent-white"
+              />
+              <p className="mt-2 text-[11px] leading-relaxed text-white/40">
+                Stretch or shrink the phone mockup vertically so it matches the uploaded video's aspect ratio.
+              </p>
+            </section>
+
             {videoUrl && (
               <section className="space-y-5 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
                 <div className="flex items-center justify-between">
