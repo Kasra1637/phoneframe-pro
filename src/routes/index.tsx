@@ -130,7 +130,8 @@ function Index() {
 
     // Phone uses its own realistic body aspect, not the video's aspect.
     // Base height in pixels; width derived from device aspect.
-    const phoneH = 1800;
+    // mockupStretchY lets the user stretch the mockup vertically to fit the uploaded video.
+    const phoneH = 1800 * mockupStretchY;
     const phoneW = phoneH * dev.aspect;
 
 
