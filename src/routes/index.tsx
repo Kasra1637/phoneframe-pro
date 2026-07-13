@@ -79,7 +79,7 @@ function Index() {
   const [videoMeta, setVideoMeta] = useState<{ w: number; h: number; d: number } | null>(null);
   const [device, setDevice] = useState<DeviceId>("s24");
   const [preset, setPreset] = useState<PresetId>("tiktok");
-  const [bg, setBg] = useState<BgId>("transparent");
+  const [bg, setBg] = useState<BgId>("white");
   const [customColor, setCustomColor] = useState("#0b0b0f");
   const [scale, setScale] = useState(0.82);
   const [mockupStretchY, setMockupStretchY] = useState(1);
@@ -179,7 +179,9 @@ function Index() {
       // Pick best codec. Always include an audio codec in the MIME string so
       // the recorder muxes the mixed audio track (some browsers drop audio
       // when only a video codec is requested).
-      const transparent = bg === "transparent";
+      const linkedinPreset = preset === "linkedin_square" || preset === "linkedin_landscape";
+      const transparent = bg === "transparent" && !linkedinPreset;
+      const exportBg = bg === "transparent" && linkedinPreset ? "white" : bg;
       const mp4Candidates = [
         'video/mp4;codecs="avc1.42E01F,mp4a.40.2"',
         'video/mp4;codecs="avc1.640028,mp4a.40.2"',
@@ -205,26 +207,51 @@ function Index() {
 
       const stream = canvas.captureStream(30);
 
-      // Mix the uploaded video's audio into the recording via WebAudio
+      video.loop = false;
+      video.muted = false;
+      video.volume = 1;
+
+      let audioTrackAdded = false;
+
+      // Prefer the browser's native media-element capture for the original audio track.
       try {
-        if (!audioCtxRef.current) {
+        const capturableVideo = video as HTMLVideoElement & {
+          captureStream?: () => MediaStream;
+          mozCaptureStream?: () => MediaStream;
+        };
+        const sourceStream = (capturableVideo.captureStream ?? capturableVideo.mozCaptureStream)?.call(video);
+        const audioTracks = sourceStream?.getAudioTracks() ?? [];
+        for (const track of audioTracks) {
+          stream.addTrack(track);
+          audioTrackAdded = true;
+        }
+      } catch (captureErr) {
+        console.warn("Native audio capture failed:", captureErr);
+      }
+
+      // Fallback: mix the uploaded video's audio into the recording via WebAudio.
+      try {
+        if (!audioTrackAdded && !audioCtxRef.current) {
           const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
           audioCtxRef.current = new Ctx();
         }
-        const ac = audioCtxRef.current!;
-        if (ac.state === "suspended") await ac.resume();
-        if (!audioSrcRef.current) {
-          // createMediaElementSource can only be called once per element
-          audioSrcRef.current = ac.createMediaElementSource(video);
-        }
-        if (!audioDestRef.current) {
-          audioDestRef.current = ac.createMediaStreamDestination();
-          audioSrcRef.current.connect(audioDestRef.current);
-          // Also route to speakers so the user can hear during export
-          audioSrcRef.current.connect(ac.destination);
-        }
-        for (const track of audioDestRef.current.stream.getAudioTracks()) {
-          stream.addTrack(track);
+        if (!audioTrackAdded && audioCtxRef.current) {
+          const ac = audioCtxRef.current;
+          if (ac.state === "suspended") await ac.resume();
+          if (!audioSrcRef.current) {
+            // createMediaElementSource can only be called once per element
+            audioSrcRef.current = ac.createMediaElementSource(video);
+          }
+          if (!audioDestRef.current) {
+            audioDestRef.current = ac.createMediaStreamDestination();
+            audioSrcRef.current.connect(audioDestRef.current);
+            // Also route to speakers so the user can hear during export.
+            audioSrcRef.current.connect(ac.destination);
+          }
+          for (const track of audioDestRef.current.stream.getAudioTracks()) {
+            stream.addTrack(track);
+            audioTrackAdded = true;
+          }
         }
       } catch (audioErr) {
         // Audio capture is best-effort; continue with video-only if it fails
@@ -243,9 +270,7 @@ function Index() {
         recorder.onstop = () => res(new Blob(chunks, { type: mime }));
       });
 
-      video.currentTime = 0;
-      video.muted = false;
-      video.volume = 1;
+      await seekVideo(video, 0);
       await video.play();
       recorder.start();
 
@@ -266,6 +291,8 @@ function Index() {
 
       recorder.stop();
       video.pause();
+      video.loop = true;
+      video.muted = true;
       const blob = await done;
       const url = URL.createObjectURL(blob);
       const pre = PRESETS.find((p) => p.id === preset)!;
@@ -274,6 +301,10 @@ function Index() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      if (video) {
+        video.loop = true;
+        video.muted = true;
+      }
       setRecording(false);
       setProgress(0);
     }
@@ -658,10 +689,9 @@ function Index() {
               src={videoUrl ?? undefined}
               className="hidden"
               playsInline
-              muted
+              muted={!recording}
               loop
               autoPlay
-              crossOrigin="anonymous"
             />
 
             {result && (
