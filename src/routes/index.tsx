@@ -551,6 +551,33 @@ function Index() {
               </section>
             )}
 
+            <section>
+              <label htmlFor="format-select" className="text-xs uppercase tracking-widest text-white/50">
+                8. Export format
+              </label>
+              <select
+                id="format-select"
+                value={bg === "transparent" ? "webm" : exportFormat}
+                disabled={bg === "transparent"}
+                onChange={(e) => setExportFormat(e.target.value as "auto" | "mp4" | "webm")}
+                className="mt-3 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60 disabled:opacity-50"
+                style={{
+                  backgroundImage:
+                    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M6 8L0 0h12z'/></svg>\")",
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 12px center",
+                  paddingRight: "32px",
+                }}
+              >
+                <option value="auto" className="bg-[#1a1a22] text-white">Auto — MP4 (H.264 + AAC)</option>
+                <option value="mp4" className="bg-[#1a1a22] text-white">MP4 — TikTok / LinkedIn / Reels</option>
+                <option value="webm" className="bg-[#1a1a22] text-white">WebM — VP9 + Opus</option>
+              </select>
+              <p className="mt-2 text-[11px] leading-relaxed text-white/40">
+                MP4 with AAC audio uploads cleanly to TikTok, LinkedIn, Reels, YouTube Shorts. Transparent background forces WebM.
+              </p>
+            </section>
+
             <button
               disabled={!videoUrl || recording}
               onClick={exportVideo}
@@ -565,8 +592,8 @@ function Index() {
             {error && <div className="rounded-lg bg-red-500/10 p-3 text-xs text-red-300">{error}</div>}
             <p className="text-[11px] leading-relaxed text-white/40">
               {bg === "transparent"
-                ? "Transparent WebM (VP9 alpha). Great for layering — note that TikTok and LinkedIn flatten alpha to black on upload. Pick a background to get a post-ready MP4 instead."
-                : "Recorded as MP4 (H.264) when your browser supports it, otherwise WebM. Upload directly to TikTok, LinkedIn, Reels, etc."}
+                ? "Transparent WebM (VP9 alpha + Opus audio). Great for layering — note that TikTok and LinkedIn flatten alpha to black on upload. Pick a background to get a post-ready MP4 instead."
+                : "Recorded with your uploaded video's original audio track. Direct upload to TikTok, LinkedIn, Reels, and YouTube Shorts."}
             </p>
           </aside>
 
