@@ -181,7 +181,6 @@ function Index() {
       // when only a video codec is requested).
       const linkedinPreset = preset === "linkedin_square" || preset === "linkedin_landscape";
       const transparent = bg === "transparent" && !linkedinPreset;
-      const exportBg = bg === "transparent" && linkedinPreset ? "white" : bg;
       const mp4Candidates = [
         'video/mp4;codecs="avc1.42E01F,mp4a.40.2"',
         'video/mp4;codecs="avc1.640028,mp4a.40.2"',
@@ -387,7 +386,13 @@ function Index() {
               <select
                 id="preset-select"
                 value={preset}
-                onChange={(e) => setPreset(e.target.value as PresetId)}
+                onChange={(e) => {
+                  const nextPreset = e.target.value as PresetId;
+                  setPreset(nextPreset);
+                  if ((nextPreset === "linkedin_square" || nextPreset === "linkedin_landscape") && bg === "transparent") {
+                    setBg("white");
+                  }
+                }}
                 className="mt-3 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
                 style={{
                   backgroundImage:
@@ -734,6 +739,20 @@ function Index() {
       </div>
     </div>
   );
+}
+
+function seekVideo(video: HTMLVideoElement, time: number) {
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      video.removeEventListener("seeked", done);
+      resolve();
+    };
+    video.addEventListener("seeked", done, { once: true });
+    video.currentTime = time;
+    if (Math.abs(video.currentTime - time) < 0.02) {
+      requestAnimationFrame(done);
+    }
+  });
 }
 
 function drawPhone(
