@@ -631,7 +631,6 @@ function Index() {
               src={videoUrl ?? undefined}
               className="hidden"
               playsInline
-              muted
               loop
               autoPlay
               crossOrigin="anonymous"
