@@ -175,18 +175,29 @@ function Index() {
     setResult(null);
 
     try {
-      // Pick best codec: opaque exports prefer mp4 (TikTok/LinkedIn-ready); transparent needs webm vp9 alpha
+      // Pick best codec. Always include an audio codec in the MIME string so
+      // the recorder muxes the mixed audio track (some browsers drop audio
+      // when only a video codec is requested).
       const transparent = bg === "transparent";
+      const mp4Candidates = [
+        'video/mp4;codecs="avc1.42E01F,mp4a.40.2"',
+        'video/mp4;codecs="avc1.640028,mp4a.40.2"',
+        'video/mp4;codecs="h264,aac"',
+        "video/mp4",
+      ];
+      const webmCandidates = [
+        'video/webm;codecs="vp9,opus"',
+        'video/webm;codecs="vp8,opus"',
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+      ];
+      const preferMp4 = !transparent && exportFormat !== "webm";
       const candidates = transparent
-        ? ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
-        : [
-            "video/mp4;codecs=avc1.42E01F",
-            "video/mp4;codecs=h264",
-            "video/mp4",
-            "video/webm;codecs=vp9",
-            "video/webm;codecs=vp8",
-            "video/webm",
-          ];
+        ? webmCandidates
+        : preferMp4
+          ? [...mp4Candidates, ...webmCandidates]
+          : [...webmCandidates, ...mp4Candidates];
       const mime = candidates.find((m) => MediaRecorder.isTypeSupported(m));
       if (!mime) throw new Error("Your browser does not support video recording.");
       const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
