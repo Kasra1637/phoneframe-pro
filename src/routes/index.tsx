@@ -650,10 +650,8 @@ function Index() {
                   src={result.url}
                   controls
                   loop
-                  muted
                   playsInline
                   preload="auto"
-                  autoPlay
                   onLoadedMetadata={(e) => {
                     const el = e.currentTarget;
                     try { el.currentTime = 0.001; } catch {}
