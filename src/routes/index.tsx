@@ -99,6 +99,7 @@ function Index() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const linkedinSelected = preset === "linkedin_square" || preset === "linkedin_landscape";
 
   const handleFile = (file: File) => {
     setError(null);
@@ -179,8 +180,7 @@ function Index() {
       // Pick best codec. Always include an audio codec in the MIME string so
       // the recorder muxes the mixed audio track (some browsers drop audio
       // when only a video codec is requested).
-      const linkedinPreset = preset === "linkedin_square" || preset === "linkedin_landscape";
-      const transparent = bg === "transparent" && !linkedinPreset;
+      const transparent = bg === "transparent" && !linkedinSelected;
       const mp4Candidates = [
         'video/mp4;codecs="avc1.42E01F,mp4a.40.2"',
         'video/mp4;codecs="avc1.640028,mp4a.40.2"',
@@ -417,7 +417,7 @@ function Index() {
                 {BACKGROUNDS.map((b) => (
                   <button
                     key={b.id}
-                    onClick={() => setBg(b.id)}
+                    onClick={() => setBg(linkedinSelected && b.id === "transparent" ? "white" : b.id)}
                     title={b.label}
                     className={`group relative aspect-square overflow-hidden rounded-lg border transition ${
                       bg === b.id ? "border-white ring-2 ring-white" : "border-white/15 hover:border-white/40"
@@ -593,8 +593,8 @@ function Index() {
               </label>
               <select
                 id="format-select"
-                value={bg === "transparent" ? "webm" : exportFormat}
-                disabled={bg === "transparent"}
+                value={bg === "transparent" ? "webm" : linkedinSelected ? "mp4" : exportFormat}
+                disabled={bg === "transparent" || linkedinSelected}
                 onChange={(e) => setExportFormat(e.target.value as "auto" | "mp4" | "webm")}
                 className="mt-3 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60 disabled:opacity-50"
                 style={{
