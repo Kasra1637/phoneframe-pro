@@ -695,7 +695,7 @@ function Index() {
               className="hidden"
               playsInline
               muted={!recording}
-              loop
+              loop={!recording}
               autoPlay
             />
 
