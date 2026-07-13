@@ -91,6 +91,7 @@ function Index() {
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ url: string; name: string; size: number; mime: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<"auto" | "mp4" | "webm">("auto");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
