@@ -636,6 +636,7 @@ function Index() {
                 : "Recorded with your uploaded video's original audio track. Direct upload to TikTok, LinkedIn, Reels, and YouTube Shorts."}
             </p>
           </aside>
+          )}
 
 
           {/* Preview */}
