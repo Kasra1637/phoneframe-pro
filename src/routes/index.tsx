@@ -92,6 +92,7 @@ function Index() {
   const [result, setResult] = useState<{ url: string; name: string; size: number; mime: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<"auto" | "mp4" | "webm">("auto");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -99,7 +100,6 @@ function Index() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const linkedinSelected = preset === "linkedin_square" || preset === "linkedin_landscape";
 
   const handleFile = (file: File) => {
     setError(null);
