@@ -319,13 +319,21 @@ function Index() {
         }}
       />
       <div className="relative mx-auto max-w-7xl px-6 py-10">
-        <header className="mb-10">
+        <header className="mb-6 flex items-center justify-between">
           <div className="text-xs uppercase tracking-[0.3em] text-white/50">MockReel</div>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((v) => !v)}
+            className="rounded-lg border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs text-white/80 transition hover:border-white/40 hover:bg-white/[0.08]"
+          >
+            {sidebarOpen ? "Hide controls" : "Show controls"}
+          </button>
         </header>
 
 
-        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+        <div className={`grid gap-6 ${sidebarOpen ? "lg:grid-cols-[360px_1fr]" : "lg:grid-cols-1"}`}>
           {/* Controls */}
+          {sidebarOpen && (
           <aside className="space-y-6 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur">
             <section>
               <label className="text-xs uppercase tracking-widest text-white/50">1. Upload recording</label>
