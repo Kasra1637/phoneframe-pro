@@ -387,11 +387,7 @@ function Index() {
                 id="preset-select"
                 value={preset}
                 onChange={(e) => {
-                  const nextPreset = e.target.value as PresetId;
-                  setPreset(nextPreset);
-                  if ((nextPreset === "linkedin_square" || nextPreset === "linkedin_landscape") && bg === "transparent") {
-                    setBg("white");
-                  }
+                  setPreset(e.target.value as PresetId);
                 }}
                 className="mt-3 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
                 style={{
