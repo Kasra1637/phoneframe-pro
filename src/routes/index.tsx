@@ -163,14 +163,54 @@ function Index() {
 
     const draw = () => {
       ctx.clearRect(0, 0, cw, ch);
-      paintBackground(ctx, cw, ch, bg, customColor);
-      // fit phone into canvas with user scale
-      const fit = Math.min(cw / phoneW, ch / phoneH) * scale;
-      const drawW = phoneW * fit;
-      const drawH = phoneH * fit;
-      const x = (cw - drawW) / 2;
-      const y = (ch - drawH) / 2;
-      drawPhone(ctx, x, y, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+
+      if (bg === "hand" && handImgRef.current) {
+        // Cover-fit the hand photo into the canvas
+        const handImg = handImgRef.current;
+        const canvasAspect = cw / ch;
+        let hw: number, hh: number, hx: number, hy: number;
+        if (canvasAspect > HAND_IMG_ASPECT) {
+          hw = cw;
+          hh = cw / HAND_IMG_ASPECT;
+          hx = 0;
+          hy = (ch - hh) / 2;
+        } else {
+          hh = ch;
+          hw = ch * HAND_IMG_ASPECT;
+          hy = 0;
+          hx = (cw - hw) / 2;
+        }
+
+        // Subtle handheld shake — combine two frequencies for natural jitter
+        const t = performance.now() / 1000;
+        const shakeAmt = Math.min(cw, ch) * 0.006;
+        const sx = Math.sin(t * 2.1) * shakeAmt + Math.sin(t * 5.7) * shakeAmt * 0.4;
+        const sy = Math.cos(t * 1.7) * shakeAmt + Math.cos(t * 6.3) * shakeAmt * 0.4;
+        const sr = Math.sin(t * 1.1) * 0.006;
+
+        ctx.save();
+        ctx.translate(cw / 2 + sx, ch / 2 + sy);
+        ctx.rotate(sr);
+        ctx.translate(-cw / 2, -ch / 2);
+
+        ctx.drawImage(handImg, hx, hy, hw, hh);
+
+        // Draw phone exactly over the blank phone rect in the photo
+        const px = hx + HAND_PHONE_RECT.x * hw;
+        const py = hy + HAND_PHONE_RECT.y * hh;
+        const pw = HAND_PHONE_RECT.w * hw;
+        const ph = HAND_PHONE_RECT.h * hh;
+        drawPhone(ctx, px, py, pw, ph, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+        ctx.restore();
+      } else {
+        paintBackground(ctx, cw, ch, bg, customColor);
+        const fit = Math.min(cw / phoneW, ch / phoneH) * scale;
+        const drawW = phoneW * fit;
+        const drawH = phoneH * fit;
+        const x = (cw - drawW) / 2;
+        const y = (ch - drawH) / 2;
+        drawPhone(ctx, x, y, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+      }
       rafRef.current = requestAnimationFrame(draw);
     };
     rafRef.current = requestAnimationFrame(draw);
