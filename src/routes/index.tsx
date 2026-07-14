@@ -180,7 +180,7 @@ function Index() {
       // Pick best codec. Always include an audio codec in the MIME string so
       // the recorder muxes the mixed audio track (some browsers drop audio
       // when only a video codec is requested).
-      const transparent = bg === "transparent" && !linkedinSelected;
+      const transparent = bg === "transparent";
       const mp4Candidates = [
         'video/mp4;codecs="avc1.42E01F,mp4a.40.2"',
         'video/mp4;codecs="avc1.640028,mp4a.40.2"',
