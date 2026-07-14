@@ -413,7 +413,7 @@ function Index() {
                 {BACKGROUNDS.map((b) => (
                   <button
                     key={b.id}
-                    onClick={() => setBg(linkedinSelected && b.id === "transparent" ? "white" : b.id)}
+                    onClick={() => setBg(b.id)}
                     title={b.label}
                     className={`group relative aspect-square overflow-hidden rounded-lg border transition ${
                       bg === b.id ? "border-white ring-2 ring-white" : "border-white/15 hover:border-white/40"
