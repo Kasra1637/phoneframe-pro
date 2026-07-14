@@ -491,7 +491,9 @@ function Index() {
                           }
                         : b.preview === "custom"
                           ? { background: customColor }
-                          : { background: b.preview }
+                          : b.id === "hand"
+                            ? { backgroundImage: b.preview, backgroundSize: "cover", backgroundPosition: "center" }
+                            : { background: b.preview }
                     }
                   />
                 ))}
