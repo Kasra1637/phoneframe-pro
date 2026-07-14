@@ -657,7 +657,7 @@ function Index() {
                   : ""}
               </span>
             </div>
-            <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl">
+            <div className="flex w-full items-center justify-center overflow-hidden rounded-2xl" style={{ height: "min(70vh, 640px)" }}>
               {videoUrl ? (
                 <canvas
                   ref={previewCanvasRef}
