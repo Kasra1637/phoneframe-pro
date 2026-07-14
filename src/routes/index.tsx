@@ -589,8 +589,8 @@ function Index() {
               </label>
               <select
                 id="format-select"
-                value={bg === "transparent" ? "webm" : linkedinSelected ? "mp4" : exportFormat}
-                disabled={bg === "transparent" || linkedinSelected}
+                value={bg === "transparent" ? "webm" : exportFormat}
+                disabled={bg === "transparent"}
                 onChange={(e) => setExportFormat(e.target.value as "auto" | "mp4" | "webm")}
                 className="mt-3 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60 disabled:opacity-50"
                 style={{
