@@ -1,16 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import handHoldCafeImg from "@/assets/hand-hold-cafe.jpg";
+import handHoldDeskImg from "@/assets/hand-hold-desk.jpg";
 import handHoldParkImg from "@/assets/hand-hold-park.jpg";
 import handHoldLivingImg from "@/assets/hand-hold-livingroom.jpg";
 
-// Rect of the blank phone within the hand-hold reference photos (fractions of image w/h)
-const HAND_PHONE_RECT = { x: 0.278, y: 0.125, w: 0.459, h: 0.6 };
+// Phone rect within each hand-hold reference photo (fractions of image w/h).
+// The photos have slightly different framings, so each gets its own rect.
 const HAND_IMG_ASPECT = 1024 / 1600;
 const HAND_BG_SRC: Record<string, string> = {
-  hand_cafe: handHoldCafeImg,
   hand_park: handHoldParkImg,
   hand_living: handHoldLivingImg,
+  hand_desk: handHoldDeskImg,
+};
+const HAND_PHONE_RECTS: Record<string, { x: number; y: number; w: number; h: number }> = {
+  hand_park:   { x: 0.278, y: 0.125, w: 0.459, h: 0.600 },
+  hand_living: { x: 0.278, y: 0.125, w: 0.459, h: 0.600 },
+  hand_desk:   { x: 0.253, y: 0.196, w: 0.460, h: 0.518 },
 };
 
 export const Route = createFileRoute("/")({
@@ -75,7 +80,7 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_cafe" | "hand_park" | "hand_living";
+type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_park" | "hand_living" | "hand_desk";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
   { id: "white", label: "White", preview: "#ffffff" },
@@ -83,9 +88,9 @@ const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "sunset", label: "Sunset", preview: "linear-gradient(135deg,#ff6a3d,#f9c846)" },
   { id: "ocean", label: "Ocean", preview: "linear-gradient(135deg,#0ea5e9,#1e3a8a)" },
   { id: "violet", label: "Violet", preview: "linear-gradient(135deg,#7c3aed,#ec4899)" },
-  { id: "hand_cafe", label: "Hand — Coffee shop", preview: `url(${handHoldCafeImg})` },
   { id: "hand_park", label: "Hand — Sunny park", preview: `url(${handHoldParkImg})` },
   { id: "hand_living", label: "Hand — Living room", preview: `url(${handHoldLivingImg})` },
+  { id: "hand_desk", label: "Hand — Desk", preview: `url(${handHoldDeskImg})` },
   { id: "custom", label: "Custom color", preview: "custom" },
 ];
 
@@ -102,6 +107,9 @@ function Index() {
   const [videoScale, setVideoScale] = useState(1);
   const [videoOffsetX, setVideoOffsetX] = useState(0);
   const [videoOffsetY, setVideoOffsetY] = useState(0);
+  const [handOffsetX, setHandOffsetX] = useState(0);
+  const [handOffsetY, setHandOffsetY] = useState(0);
+  const [handZoom, setHandZoom] = useState(1);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ url: string; name: string; size: number; mime: string } | null>(null);
@@ -179,19 +187,24 @@ function Index() {
       const handImgActive = bg.startsWith("hand_") ? handImgRefs.current[bg] : null;
       if (handImgActive) {
         const handImg = handImgActive;
+        // Paint a neutral fill behind so any exposed edge (after pan/zoom) isn't blank/transparent.
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, cw, ch);
+
         const canvasAspect = cw / ch;
-        let hw: number, hh: number, hx: number, hy: number;
+        let hw: number, hh: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
           hw = cw;
           hh = cw / HAND_IMG_ASPECT;
-          hx = 0;
-          hy = (ch - hh) / 2;
         } else {
           hh = ch;
           hw = ch * HAND_IMG_ASPECT;
-          hy = 0;
-          hx = (cw - hw) / 2;
         }
+        // Apply user zoom, then user pan (in fractions of canvas w/h).
+        hw *= handZoom;
+        hh *= handZoom;
+        const hx = (cw - hw) / 2 + handOffsetX * cw;
+        const hy = (ch - hh) / 2 + handOffsetY * ch;
 
         // Subtle handheld shake — combine two frequencies for natural jitter
         const t = performance.now() / 1000;
@@ -207,11 +220,12 @@ function Index() {
 
         ctx.drawImage(handImg, hx, hy, hw, hh);
 
-        // Draw phone exactly over the blank phone rect in the photo
-        const px = hx + HAND_PHONE_RECT.x * hw;
-        const py = hy + HAND_PHONE_RECT.y * hh;
-        const pw = HAND_PHONE_RECT.w * hw;
-        const ph = HAND_PHONE_RECT.h * hh;
+        // Draw phone exactly over the blank phone rect in the (transformed) photo
+        const rect = HAND_PHONE_RECTS[bg] ?? { x: 0.278, y: 0.125, w: 0.459, h: 0.6 };
+        const px = hx + rect.x * hw;
+        const py = hy + rect.y * hh;
+        const pw = rect.w * hw;
+        const ph = rect.h * hh;
         drawPhone(ctx, px, py, pw, ph, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
         ctx.restore();
       } else {
@@ -230,7 +244,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY, handOffsetX, handOffsetY, handZoom]);
 
   const exportVideo = async () => {
     const video = videoRef.current;
@@ -518,6 +532,65 @@ function Index() {
                   className="mt-2 h-9 w-full cursor-pointer rounded-lg bg-transparent"
                 />
               )}
+              {bg.startsWith("hand_") && (
+                <div className="mt-3 space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div className="flex items-center justify-between text-xs text-white/60">
+                    <span>Hand + phone position &amp; zoom</span>
+                    <button
+                      type="button"
+                      className="rounded-md border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/10"
+                      onClick={() => { setHandOffsetX(0); setHandOffsetY(0); setHandZoom(1); }}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-white/60">
+                      Horizontal ({(handOffsetX * 100).toFixed(0)}%)
+                    </label>
+                    <input
+                      type="range"
+                      min={-0.8}
+                      max={0.8}
+                      step={0.01}
+                      value={handOffsetX}
+                      onChange={(e) => setHandOffsetX(Number(e.target.value))}
+                      className="w-full accent-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-white/60">
+                      Vertical ({(handOffsetY * 100).toFixed(0)}%)
+                    </label>
+                    <input
+                      type="range"
+                      min={-0.8}
+                      max={0.8}
+                      step={0.01}
+                      value={handOffsetY}
+                      onChange={(e) => setHandOffsetY(Number(e.target.value))}
+                      className="w-full accent-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-white/60">
+                      Zoom ({handZoom.toFixed(2)}x)
+                    </label>
+                    <input
+                      type="range"
+                      min={0.5}
+                      max={2.5}
+                      step={0.01}
+                      value={handZoom}
+                      onChange={(e) => setHandZoom(Number(e.target.value))}
+                      className="w-full accent-white"
+                    />
+                  </div>
+                  <p className="text-[10px] text-white/40">
+                    Tip: drag the preview to reposition, scroll to zoom.
+                  </p>
+                </div>
+              )}
             </section>
 
             <section>
@@ -737,13 +810,21 @@ function Index() {
                     const rect = el.getBoundingClientRect();
                     const startX = e.clientX;
                     const startY = e.clientY;
-                    const startOffX = videoOffsetX;
-                    const startOffY = videoOffsetY;
+                    const handMode = bg.startsWith("hand_");
+                    const startOffX = handMode ? handOffsetX : videoOffsetX;
+                    const startOffY = handMode ? handOffsetY : videoOffsetY;
                     const move = (ev: PointerEvent) => {
-                      const dx = ((ev.clientX - startX) / rect.width) * 200;
-                      const dy = ((ev.clientY - startY) / rect.height) * 200;
-                      setVideoOffsetX(Math.max(-100, Math.min(100, Math.round(startOffX + dx))));
-                      setVideoOffsetY(Math.max(-100, Math.min(100, Math.round(startOffY + dy))));
+                      if (handMode) {
+                        const dx = (ev.clientX - startX) / rect.width;
+                        const dy = (ev.clientY - startY) / rect.height;
+                        setHandOffsetX(Math.max(-1, Math.min(1, +(startOffX + dx).toFixed(3))));
+                        setHandOffsetY(Math.max(-1, Math.min(1, +(startOffY + dy).toFixed(3))));
+                      } else {
+                        const dx = ((ev.clientX - startX) / rect.width) * 200;
+                        const dy = ((ev.clientY - startY) / rect.height) * 200;
+                        setVideoOffsetX(Math.max(-100, Math.min(100, Math.round(startOffX + dx))));
+                        setVideoOffsetY(Math.max(-100, Math.min(100, Math.round(startOffY + dy))));
+                      }
                     };
                     const up = () => {
                       window.removeEventListener("pointermove", move);
@@ -754,7 +835,11 @@ function Index() {
                   }}
                   onWheel={(e) => {
                     e.preventDefault();
-                    setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
+                    if (bg.startsWith("hand_")) {
+                      setHandZoom((z) => Math.max(0.5, Math.min(2.5, +(z - e.deltaY * 0.002).toFixed(2))));
+                    } else {
+                      setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
+                    }
                   }}
                 />
               ) : (
