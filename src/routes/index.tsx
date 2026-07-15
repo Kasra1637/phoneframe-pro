@@ -1,10 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import handHoldImg from "@/assets/hand-hold.jpg";
+import handHoldCafeImg from "@/assets/hand-hold-cafe.jpg";
+import handHoldParkImg from "@/assets/hand-hold-park.jpg";
+import handHoldLivingImg from "@/assets/hand-hold-livingroom.jpg";
 
-// Rect of the blank phone within the hand-hold reference photo (fractions of image w/h)
+// Rect of the blank phone within the hand-hold reference photos (fractions of image w/h)
 const HAND_PHONE_RECT = { x: 0.278, y: 0.125, w: 0.459, h: 0.6 };
 const HAND_IMG_ASPECT = 1024 / 1600;
+const HAND_BG_SRC: Record<string, string> = {
+  hand_cafe: handHoldCafeImg,
+  hand_park: handHoldParkImg,
+  hand_living: handHoldLivingImg,
+};
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -68,7 +75,7 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand";
+type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_cafe" | "hand_park" | "hand_living";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
   { id: "white", label: "White", preview: "#ffffff" },
@@ -76,7 +83,9 @@ const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "sunset", label: "Sunset", preview: "linear-gradient(135deg,#ff6a3d,#f9c846)" },
   { id: "ocean", label: "Ocean", preview: "linear-gradient(135deg,#0ea5e9,#1e3a8a)" },
   { id: "violet", label: "Violet", preview: "linear-gradient(135deg,#7c3aed,#ec4899)" },
-  { id: "hand", label: "Hand hold (realistic)", preview: `url(${handHoldImg})` },
+  { id: "hand_cafe", label: "Hand — Coffee shop", preview: `url(${handHoldCafeImg})` },
+  { id: "hand_park", label: "Hand — Sunny park", preview: `url(${handHoldParkImg})` },
+  { id: "hand_living", label: "Hand — Living room", preview: `url(${handHoldLivingImg})` },
   { id: "custom", label: "Custom color", preview: "custom" },
 ];
 
@@ -106,13 +115,16 @@ function Index() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const handImgRef = useRef<HTMLImageElement | null>(null);
+  const handImgRefs = useRef<Record<string, HTMLImageElement>>({});
 
   useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = handHoldImg;
-    img.onload = () => { handImgRef.current = img; };
+    Object.entries(HAND_BG_SRC).forEach(([key, src]) => {
+      if (handImgRefs.current[key]) return;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = src;
+      img.onload = () => { handImgRefs.current[key] = img; };
+    });
   }, []);
 
   const handleFile = (file: File) => {
@@ -164,9 +176,9 @@ function Index() {
     const draw = () => {
       ctx.clearRect(0, 0, cw, ch);
 
-      if (bg === "hand" && handImgRef.current) {
-        // Cover-fit the hand photo into the canvas
-        const handImg = handImgRef.current;
+      const handImgActive = bg.startsWith("hand_") ? handImgRefs.current[bg] : null;
+      if (handImgActive) {
+        const handImg = handImgActive;
         const canvasAspect = cw / ch;
         let hw: number, hh: number, hx: number, hy: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
@@ -491,7 +503,7 @@ function Index() {
                           }
                         : b.preview === "custom"
                           ? { background: customColor }
-                          : b.id === "hand"
+                          : b.id.startsWith("hand_")
                             ? { backgroundImage: b.preview, backgroundSize: "cover", backgroundPosition: "center" }
                             : { background: b.preview }
                     }
