@@ -187,19 +187,24 @@ function Index() {
       const handImgActive = bg.startsWith("hand_") ? handImgRefs.current[bg] : null;
       if (handImgActive) {
         const handImg = handImgActive;
+        // Paint a neutral fill behind so any exposed edge (after pan/zoom) isn't blank/transparent.
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, cw, ch);
+
         const canvasAspect = cw / ch;
-        let hw: number, hh: number, hx: number, hy: number;
+        let hw: number, hh: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
           hw = cw;
           hh = cw / HAND_IMG_ASPECT;
-          hx = 0;
-          hy = (ch - hh) / 2;
         } else {
           hh = ch;
           hw = ch * HAND_IMG_ASPECT;
-          hy = 0;
-          hx = (cw - hw) / 2;
         }
+        // Apply user zoom, then user pan (in fractions of canvas w/h).
+        hw *= handZoom;
+        hh *= handZoom;
+        const hx = (cw - hw) / 2 + handOffsetX * cw;
+        const hy = (ch - hh) / 2 + handOffsetY * ch;
 
         // Subtle handheld shake — combine two frequencies for natural jitter
         const t = performance.now() / 1000;
@@ -215,11 +220,12 @@ function Index() {
 
         ctx.drawImage(handImg, hx, hy, hw, hh);
 
-        // Draw phone exactly over the blank phone rect in the photo
-        const px = hx + HAND_PHONE_RECT.x * hw;
-        const py = hy + HAND_PHONE_RECT.y * hh;
-        const pw = HAND_PHONE_RECT.w * hw;
-        const ph = HAND_PHONE_RECT.h * hh;
+        // Draw phone exactly over the blank phone rect in the (transformed) photo
+        const rect = HAND_PHONE_RECTS[bg] ?? { x: 0.278, y: 0.125, w: 0.459, h: 0.6 };
+        const px = hx + rect.x * hw;
+        const py = hy + rect.y * hh;
+        const pw = rect.w * hw;
+        const ph = rect.h * hh;
         drawPhone(ctx, px, py, pw, ph, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
         ctx.restore();
       } else {
