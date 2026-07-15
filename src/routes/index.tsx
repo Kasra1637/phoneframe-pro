@@ -532,6 +532,65 @@ function Index() {
                   className="mt-2 h-9 w-full cursor-pointer rounded-lg bg-transparent"
                 />
               )}
+              {bg.startsWith("hand_") && (
+                <div className="mt-3 space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div className="flex items-center justify-between text-xs text-white/60">
+                    <span>Hand + phone position &amp; zoom</span>
+                    <button
+                      type="button"
+                      className="rounded-md border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/10"
+                      onClick={() => { setHandOffsetX(0); setHandOffsetY(0); setHandZoom(1); }}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-white/60">
+                      Horizontal ({(handOffsetX * 100).toFixed(0)}%)
+                    </label>
+                    <input
+                      type="range"
+                      min={-0.8}
+                      max={0.8}
+                      step={0.01}
+                      value={handOffsetX}
+                      onChange={(e) => setHandOffsetX(Number(e.target.value))}
+                      className="w-full accent-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-white/60">
+                      Vertical ({(handOffsetY * 100).toFixed(0)}%)
+                    </label>
+                    <input
+                      type="range"
+                      min={-0.8}
+                      max={0.8}
+                      step={0.01}
+                      value={handOffsetY}
+                      onChange={(e) => setHandOffsetY(Number(e.target.value))}
+                      className="w-full accent-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-white/60">
+                      Zoom ({handZoom.toFixed(2)}x)
+                    </label>
+                    <input
+                      type="range"
+                      min={0.5}
+                      max={2.5}
+                      step={0.01}
+                      value={handZoom}
+                      onChange={(e) => setHandZoom(Number(e.target.value))}
+                      className="w-full accent-white"
+                    />
+                  </div>
+                  <p className="text-[10px] text-white/40">
+                    Tip: drag the preview to reposition, scroll to zoom.
+                  </p>
+                </div>
+              )}
             </section>
 
             <section>
