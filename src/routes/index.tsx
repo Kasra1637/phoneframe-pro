@@ -244,7 +244,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY, handOffsetX, handOffsetY, handZoom]);
 
   const exportVideo = async () => {
     const video = videoRef.current;
