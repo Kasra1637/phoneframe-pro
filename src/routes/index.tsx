@@ -176,9 +176,9 @@ function Index() {
     const draw = () => {
       ctx.clearRect(0, 0, cw, ch);
 
-      if (bg === "hand" && handImgRef.current) {
-        // Cover-fit the hand photo into the canvas
-        const handImg = handImgRef.current;
+      const handImgActive = bg.startsWith("hand_") ? handImgRefs.current[bg] : null;
+      if (handImgActive) {
+        const handImg = handImgActive;
         const canvasAspect = cw / ch;
         let hw: number, hh: number, hx: number, hy: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
