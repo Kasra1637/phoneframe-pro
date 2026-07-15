@@ -503,7 +503,7 @@ function Index() {
                           }
                         : b.preview === "custom"
                           ? { background: customColor }
-                          : b.id === "hand"
+                          : b.id.startsWith("hand_")
                             ? { backgroundImage: b.preview, backgroundSize: "cover", backgroundPosition: "center" }
                             : { background: b.preview }
                     }
