@@ -751,13 +751,21 @@ function Index() {
                     const rect = el.getBoundingClientRect();
                     const startX = e.clientX;
                     const startY = e.clientY;
-                    const startOffX = videoOffsetX;
-                    const startOffY = videoOffsetY;
+                    const handMode = bg.startsWith("hand_");
+                    const startOffX = handMode ? handOffsetX : videoOffsetX;
+                    const startOffY = handMode ? handOffsetY : videoOffsetY;
                     const move = (ev: PointerEvent) => {
-                      const dx = ((ev.clientX - startX) / rect.width) * 200;
-                      const dy = ((ev.clientY - startY) / rect.height) * 200;
-                      setVideoOffsetX(Math.max(-100, Math.min(100, Math.round(startOffX + dx))));
-                      setVideoOffsetY(Math.max(-100, Math.min(100, Math.round(startOffY + dy))));
+                      if (handMode) {
+                        const dx = (ev.clientX - startX) / rect.width;
+                        const dy = (ev.clientY - startY) / rect.height;
+                        setHandOffsetX(Math.max(-1, Math.min(1, +(startOffX + dx).toFixed(3))));
+                        setHandOffsetY(Math.max(-1, Math.min(1, +(startOffY + dy).toFixed(3))));
+                      } else {
+                        const dx = ((ev.clientX - startX) / rect.width) * 200;
+                        const dy = ((ev.clientY - startY) / rect.height) * 200;
+                        setVideoOffsetX(Math.max(-100, Math.min(100, Math.round(startOffX + dx))));
+                        setVideoOffsetY(Math.max(-100, Math.min(100, Math.round(startOffY + dy))));
+                      }
                     };
                     const up = () => {
                       window.removeEventListener("pointermove", move);
@@ -768,7 +776,11 @@ function Index() {
                   }}
                   onWheel={(e) => {
                     e.preventDefault();
-                    setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
+                    if (bg.startsWith("hand_")) {
+                      setHandZoom((z) => Math.max(0.5, Math.min(2.5, +(z - e.deltaY * 0.002).toFixed(2))));
+                    } else {
+                      setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
+                    }
                   }}
                 />
               ) : (
