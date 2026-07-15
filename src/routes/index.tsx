@@ -80,7 +80,7 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_cafe" | "hand_park" | "hand_living";
+type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_park" | "hand_living" | "hand_desk";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
   { id: "white", label: "White", preview: "#ffffff" },
@@ -88,9 +88,9 @@ const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "sunset", label: "Sunset", preview: "linear-gradient(135deg,#ff6a3d,#f9c846)" },
   { id: "ocean", label: "Ocean", preview: "linear-gradient(135deg,#0ea5e9,#1e3a8a)" },
   { id: "violet", label: "Violet", preview: "linear-gradient(135deg,#7c3aed,#ec4899)" },
-  { id: "hand_cafe", label: "Hand — Coffee shop", preview: `url(${handHoldCafeImg})` },
   { id: "hand_park", label: "Hand — Sunny park", preview: `url(${handHoldParkImg})` },
   { id: "hand_living", label: "Hand — Living room", preview: `url(${handHoldLivingImg})` },
+  { id: "hand_desk", label: "Hand — Desk", preview: `url(${handHoldDeskImg})` },
   { id: "custom", label: "Custom color", preview: "custom" },
 ];
 
