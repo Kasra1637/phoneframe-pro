@@ -107,6 +107,9 @@ function Index() {
   const [videoScale, setVideoScale] = useState(1);
   const [videoOffsetX, setVideoOffsetX] = useState(0);
   const [videoOffsetY, setVideoOffsetY] = useState(0);
+  const [handOffsetX, setHandOffsetX] = useState(0);
+  const [handOffsetY, setHandOffsetY] = useState(0);
+  const [handZoom, setHandZoom] = useState(1);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ url: string; name: string; size: number; mime: string } | null>(null);
