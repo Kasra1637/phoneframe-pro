@@ -1,16 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import handHoldCafeImg from "@/assets/hand-hold-cafe.jpg";
+import handHoldDeskImg from "@/assets/hand-hold-desk.jpg";
 import handHoldParkImg from "@/assets/hand-hold-park.jpg";
 import handHoldLivingImg from "@/assets/hand-hold-livingroom.jpg";
 
-// Rect of the blank phone within the hand-hold reference photos (fractions of image w/h)
-const HAND_PHONE_RECT = { x: 0.278, y: 0.125, w: 0.459, h: 0.6 };
+// Phone rect within each hand-hold reference photo (fractions of image w/h).
+// The photos have slightly different framings, so each gets its own rect.
 const HAND_IMG_ASPECT = 1024 / 1600;
 const HAND_BG_SRC: Record<string, string> = {
-  hand_cafe: handHoldCafeImg,
   hand_park: handHoldParkImg,
   hand_living: handHoldLivingImg,
+  hand_desk: handHoldDeskImg,
+};
+const HAND_PHONE_RECTS: Record<string, { x: number; y: number; w: number; h: number }> = {
+  hand_park:   { x: 0.278, y: 0.125, w: 0.459, h: 0.600 },
+  hand_living: { x: 0.278, y: 0.125, w: 0.459, h: 0.600 },
+  hand_desk:   { x: 0.253, y: 0.196, w: 0.460, h: 0.518 },
 };
 
 export const Route = createFileRoute("/")({
