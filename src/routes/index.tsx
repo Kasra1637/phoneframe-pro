@@ -115,13 +115,16 @@ function Index() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const handImgRef = useRef<HTMLImageElement | null>(null);
+  const handImgRefs = useRef<Record<string, HTMLImageElement>>({});
 
   useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = handHoldImg;
-    img.onload = () => { handImgRef.current = img; };
+    Object.entries(HAND_BG_SRC).forEach(([key, src]) => {
+      if (handImgRefs.current[key]) return;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = src;
+      img.onload = () => { handImgRefs.current[key] = img; };
+    });
   }, []);
 
   const handleFile = (file: File) => {
