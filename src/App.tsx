@@ -239,10 +239,13 @@ function Index() {
         const hy = (ch - hh) / 2 + handOffsetY * ch;
         ctx.drawImage(handImg, hx, hy, hw, hh);
 
-        // Step 4: Draw the actual device frame with video (same as non-hand mode)
+        // Step 4: Draw the palm/wrist behind the phone so the grip reads as a real hand
+        drawPalm(ctx, cw, ch, phoneX, phoneY, drawW, drawH);
+
+        // Step 5: Draw the actual device frame with video (same as non-hand mode)
         drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
 
-        // Step 5: Draw realistic fingers wrapping around the phone
+        // Step 6: Draw realistic fingers + thumb wrapping around the phone
         drawFingers(ctx, phoneX, phoneY, drawW, drawH, dev);
 
         ctx.restore();
@@ -824,237 +827,212 @@ function drawPhone(
 }
 
 
-// Draw realistic fingers wrapping around the phone edges
+// --- Hand-hold rendering -------------------------------------------------
+// Anatomically, a one-handed phone grip looks like this from the front:
+//  - The palm + wrist cradle the phone from behind/below on one side.
+//  - The thumb is the ONLY digit that naturally reaches the screen face,
+//    so it is the dominant, most detailed shape, sweeping across the
+//    lower part of the screen.
+//  - The other four fingers wrap the back of the phone; only their tips
+//    peek over the opposite edge onto the face.
+// This is rendered with "stamped circle" tubes (a series of overlapping
+// filled circles along a curve) so each digit can taper naturally and
+// take a soft light/shadow pass without relying on brittle bezier fills.
+
+const SKIN_BASE = "#c99a72";
+const SKIN_MID = "#b3835c";
+const SKIN_SHADOW = "#7d5236";
+const SKIN_HIGHLIGHT = "#e8c69e";
+const CREASE_COLOR = "rgba(70, 42, 26, 0.35)";
+
+function quadPoint(p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, t: number) {
+  const mt = 1 - t;
+  return {
+    x: mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x,
+    y: mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y,
+  };
+}
+
+// Draws one tapered digit (finger or thumb) as a smooth tube using stamped
+// circles, with a shadow underside, a lit topside, and a soft contact pad
+// at the tip.
+function drawTaperedDigit(
+  ctx: CanvasRenderingContext2D,
+  p0: { x: number; y: number },
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  r0: number,
+  r2: number,
+) {
+  const steps = 28;
+  const lightDx = -r0 * 0.22, lightDy = -r0 * 0.22;
+  const shadowDx = r0 * 0.20, shadowDy = r0 * 0.20;
+
+  // Base tube (mid tone -> slightly warmer near the tip)
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const pt = quadPoint(p0, p1, p2, t);
+    const r = r0 + (r2 - r0) * t;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = t < 0.5 ? SKIN_MID : SKIN_BASE;
+    ctx.fill();
+  }
+  // Shadow underside (offset down/right)
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const pt = quadPoint(p0, p1, p2, t);
+    const r = (r0 + (r2 - r0) * t) * 0.62;
+    ctx.beginPath();
+    ctx.arc(pt.x + shadowDx, pt.y + shadowDy, r, 0, Math.PI * 2);
+    ctx.fillStyle = SKIN_SHADOW;
+    ctx.globalAlpha = 0.45;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // Re-lay the base tube so the shadow pass only shows at the true edge
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const pt = quadPoint(p0, p1, p2, t);
+    const r = (r0 + (r2 - r0) * t) * 0.88;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = t < 0.5 ? SKIN_MID : SKIN_BASE;
+    ctx.fill();
+  }
+  // Highlight (offset up/left)
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const pt = quadPoint(p0, p1, p2, t);
+    const r = (r0 + (r2 - r0) * t) * 0.42;
+    ctx.beginPath();
+    ctx.arc(pt.x + lightDx, pt.y + lightDy, r, 0, Math.PI * 2);
+    ctx.fillStyle = SKIN_HIGHLIGHT;
+    ctx.globalAlpha = 0.35;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Fingertip contact pad (slightly flattened, a touch darker — pressed
+  // against the glass) plus a faint contact shadow ring for grounding.
+  ctx.beginPath();
+  ctx.ellipse(p2.x, p2.y, r2 * 1.05, r2 * 0.85, 0, 0, Math.PI * 2);
+  ctx.fillStyle = SKIN_BASE;
+  ctx.globalAlpha = 0.9;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Knuckle crease near the wrap point (p1)
+  ctx.beginPath();
+  ctx.moveTo(p1.x - r0 * 0.35, p1.y - r0 * 0.5);
+  ctx.quadraticCurveTo(p1.x, p1.y - r0 * 0.05, p1.x - r0 * 0.35, p1.y + r0 * 0.5);
+  ctx.strokeStyle = CREASE_COLOR;
+  ctx.lineWidth = Math.max(1, r0 * 0.08);
+  ctx.stroke();
+}
+
+// Draws the palm + wrist behind the phone (call BEFORE drawPhone) so the
+// grip has a real hand mass anchoring it, visible around the phone's
+// right and bottom edges and trailing off the bottom of the frame.
+function drawPalm(
+  ctx: CanvasRenderingContext2D,
+  _cw: number, ch: number,
+  phoneX: number, phoneY: number,
+  phoneW: number, phoneH: number,
+) {
+  ctx.save();
+  const centerX = phoneX + phoneW * 0.74;
+
+  // Wrist: tapered mass running from behind the phone off the bottom edge.
+  const wristTopY = phoneY + phoneH * 0.80;
+  const wristTopW = phoneW * 0.62;
+  const wristBotW = phoneW * 1.05;
+  const wristBotY = ch + phoneH * 0.18;
+
+  const wristGrad = ctx.createLinearGradient(centerX - phoneW * 0.5, wristTopY, centerX + phoneW * 0.5, wristBotY);
+  wristGrad.addColorStop(0, SKIN_HIGHLIGHT);
+  wristGrad.addColorStop(0.45, SKIN_BASE);
+  wristGrad.addColorStop(1, SKIN_SHADOW);
+  ctx.fillStyle = wristGrad;
+
+  ctx.beginPath();
+  ctx.moveTo(centerX - wristTopW / 2, wristTopY);
+  ctx.lineTo(centerX + wristTopW / 2, wristTopY);
+  ctx.quadraticCurveTo(centerX + wristBotW * 0.55, (wristTopY + wristBotY) / 2, centerX + wristBotW / 2, wristBotY);
+  ctx.lineTo(centerX - wristBotW / 2, wristBotY);
+  ctx.quadraticCurveTo(centerX - wristBotW * 0.55, (wristTopY + wristBotY) / 2, centerX - wristTopW / 2, wristTopY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Palm heel: rounded mass bulging past the phone's right & bottom edges.
+  const palmCX = phoneX + phoneW * 0.90;
+  const palmCY = phoneY + phoneH * 0.66;
+  const palmGrad = ctx.createLinearGradient(palmCX - phoneW * 0.4, palmCY - phoneH * 0.3, palmCX + phoneW * 0.4, palmCY + phoneH * 0.3);
+  palmGrad.addColorStop(0, SKIN_HIGHLIGHT);
+  palmGrad.addColorStop(0.5, SKIN_BASE);
+  palmGrad.addColorStop(1, SKIN_SHADOW);
+  ctx.fillStyle = palmGrad;
+  ctx.beginPath();
+  ctx.ellipse(palmCX, palmCY, phoneW * 0.40, phoneH * 0.28, -0.12, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// Draws the thumb (sweeping across the screen) and the four fingertips
+// peeking over the opposite edge. Call AFTER drawPhone so digits sit on
+// top of the screen/frame like a real grip.
 function drawFingers(
   ctx: CanvasRenderingContext2D,
   phoneX: number, phoneY: number,
   phoneW: number, phoneH: number,
   _dev: DeviceSpec,
 ) {
-  // Skin tone colors (natural gradient)
-  const skinBase = "rgba(198, 160, 130, 0.95)";
-  const skinShadow = "rgba(145, 105, 78, 0.9)";
-  const skinHighlight = "rgba(225, 195, 170, 0.85)";
-  const nailColor = "rgba(235, 210, 195, 0.9)";
-  const knuckleCrease = "rgba(130, 90, 65, 0.4)";
+  const fingerR = phoneW * 0.052;
 
-  // Finger dimensions relative to phone size
-  const fingerWidth = phoneW * 0.09;
-  const fingerTipRadius = fingerWidth * 0.48;
-
-  // --- RIGHT HAND: 4 fingers wrapping from the right side ---
-  // Fingers are spaced along the right edge, curving inward onto the face
-  const rightFingers = [
-    { yFrac: 0.28, wrapInward: 0.18, length: 1.0 },   // Index finger (top)
-    { yFrac: 0.40, wrapInward: 0.22, length: 1.05 },   // Middle finger
-    { yFrac: 0.52, wrapInward: 0.20, length: 1.0 },   // Ring finger
-    { yFrac: 0.64, wrapInward: 0.15, length: 0.90 },  // Pinky (shorter)
+  // --- Four fingertips wrapping the back, peeking over the LEFT edge ---
+  const leftFingers = [
+    { yFrac: 0.20, reach: 0.155, r: fingerR * 1.00 },
+    { yFrac: 0.37, reach: 0.185, r: fingerR * 1.05 },
+    { yFrac: 0.54, reach: 0.165, r: fingerR * 1.00 },
+    { yFrac: 0.71, reach: 0.120, r: fingerR * 0.85 }, // pinky, shorter
   ];
 
-  for (let i = 0; i < rightFingers.length; i++) {
-    const finger = rightFingers[i];
-    const fy = phoneY + phoneH * finger.yFrac;
-    const fLen = fingerWidth * finger.length * 3.2;
-    const wrapX = phoneW * finger.wrapInward;
+  for (const f of leftFingers) {
+    const edgeY = phoneY + phoneH * f.yFrac;
+    const p0 = { x: phoneX - f.r * 0.9, y: edgeY - f.r * 0.3 }; // hidden base, just past the edge
+    const p1 = { x: phoneX + f.r * 0.1, y: edgeY };             // apex of the curl over the edge
+    const p2 = { x: phoneX + phoneW * f.reach, y: edgeY + f.r * 0.15 }; // tip resting on the face
 
+    // Contact shadow grounding the tip against the glass.
     ctx.save();
-
-    // The finger comes from the right side, wraps over the right edge
-    // Main finger body
-    const fingerStartX = phoneX + phoneW + fingerWidth * 0.3; // starts slightly beyond phone edge
-    const fingerEndX = phoneX + phoneW - wrapX; // wraps inward this much
-
-    // Draw finger body with gradient
+    ctx.globalAlpha = 0.18;
     ctx.beginPath();
-    // Top edge of finger
-    const topY = fy - fingerWidth * 0.45;
-    const botY = fy + fingerWidth * 0.45;
-
-    // Curved finger shape wrapping around the edge
-    ctx.moveTo(fingerStartX + fingerWidth, topY + fingerWidth * 0.1);
-    // Right side (behind phone, partially visible)
-    ctx.lineTo(fingerStartX, topY);
-    // Curve over the phone edge
-    ctx.quadraticCurveTo(
-      phoneX + phoneW + fingerWidth * 0.05, topY - fingerWidth * 0.05,
-      phoneX + phoneW - wrapX * 0.3, topY + fingerWidth * 0.05
-    );
-    // Fingertip (the part visible on phone face)
-    ctx.quadraticCurveTo(
-      fingerEndX - fingerTipRadius * 0.5, topY + fingerWidth * 0.1,
-      fingerEndX, fy
-    );
-    // Bottom curve of fingertip
-    ctx.quadraticCurveTo(
-      fingerEndX - fingerTipRadius * 0.5, botY - fingerWidth * 0.1,
-      phoneX + phoneW - wrapX * 0.3, botY - fingerWidth * 0.05
-    );
-    // Curve back over edge
-    ctx.quadraticCurveTo(
-      phoneX + phoneW + fingerWidth * 0.05, botY + fingerWidth * 0.05,
-      fingerStartX, botY
-    );
-    ctx.lineTo(fingerStartX + fingerWidth, botY - fingerWidth * 0.1);
-    ctx.closePath();
-
-    // Gradient fill for 3D appearance
-    const fingerGrad = ctx.createLinearGradient(fingerEndX, topY, fingerStartX, botY);
-    fingerGrad.addColorStop(0, skinHighlight);
-    fingerGrad.addColorStop(0.3, skinBase);
-    fingerGrad.addColorStop(0.7, skinBase);
-    fingerGrad.addColorStop(1, skinShadow);
-    ctx.fillStyle = fingerGrad;
-    ctx.fill();
-
-    // Top shadow edge (gives roundness)
-    ctx.beginPath();
-    ctx.moveTo(fingerStartX, topY);
-    ctx.quadraticCurveTo(
-      phoneX + phoneW + fingerWidth * 0.05, topY - fingerWidth * 0.05,
-      phoneX + phoneW - wrapX * 0.3, topY + fingerWidth * 0.05
-    );
-    ctx.quadraticCurveTo(
-      fingerEndX - fingerTipRadius * 0.5, topY + fingerWidth * 0.1,
-      fingerEndX, fy
-    );
-    ctx.strokeStyle = knuckleCrease;
-    ctx.lineWidth = fingerWidth * 0.04;
-    ctx.stroke();
-
-    // Nail on the fingertip (small oval)
-    const nailW = fingerWidth * 0.45;
-    const nailH = fingerWidth * 0.55;
-    const nailX = fingerEndX + nailW * 0.5;
-    const nailY = fy;
-    ctx.beginPath();
-    ctx.ellipse(nailX, nailY, nailW * 0.4, nailH * 0.4, 0, 0, Math.PI * 2);
-    ctx.fillStyle = nailColor;
-    ctx.fill();
-    ctx.strokeStyle = "rgba(180, 145, 120, 0.5)";
-    ctx.lineWidth = fingerWidth * 0.02;
-    ctx.stroke();
-
-    // Knuckle crease lines
-    const creaseX = phoneX + phoneW + fingerWidth * 0.05;
-    ctx.beginPath();
-    ctx.moveTo(creaseX, fy - fingerWidth * 0.25);
-    ctx.quadraticCurveTo(creaseX + fingerWidth * 0.02, fy, creaseX, fy + fingerWidth * 0.25);
-    ctx.strokeStyle = knuckleCrease;
-    ctx.lineWidth = fingerWidth * 0.03;
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
-  // --- THUMB on the left side (lower portion) ---
-  ctx.save();
-  const thumbY = phoneY + phoneH * 0.72;
-  const thumbWidth = fingerWidth * 1.6;
-  const thumbWrapInward = phoneW * 0.25;
-  const thumbEndX = phoneX + thumbWrapInward;
-  const thumbStartX = phoneX - thumbWidth * 0.8;
-
-  // Thumb body
-  ctx.beginPath();
-  const tTopY = thumbY - thumbWidth * 0.5;
-  const tBotY = thumbY + thumbWidth * 0.5;
-
-  ctx.moveTo(thumbStartX - thumbWidth, tTopY + thumbWidth * 0.2);
-  ctx.lineTo(thumbStartX, tTopY);
-  ctx.quadraticCurveTo(
-    phoneX - thumbWidth * 0.1, tTopY - thumbWidth * 0.08,
-    phoneX + thumbWrapInward * 0.4, tTopY + thumbWidth * 0.08
-  );
-  // Thumb tip
-  ctx.quadraticCurveTo(
-    thumbEndX + thumbWidth * 0.2, tTopY + thumbWidth * 0.15,
-    thumbEndX, thumbY
-  );
-  ctx.quadraticCurveTo(
-    thumbEndX + thumbWidth * 0.2, tBotY - thumbWidth * 0.15,
-    phoneX + thumbWrapInward * 0.4, tBotY - thumbWidth * 0.08
-  );
-  ctx.quadraticCurveTo(
-    phoneX - thumbWidth * 0.1, tBotY + thumbWidth * 0.08,
-    thumbStartX, tBotY
-  );
-  ctx.lineTo(thumbStartX - thumbWidth, tBotY - thumbWidth * 0.2);
-  ctx.closePath();
-
-  const thumbGrad = ctx.createLinearGradient(thumbEndX, tTopY, thumbStartX, tBotY);
-  thumbGrad.addColorStop(0, skinHighlight);
-  thumbGrad.addColorStop(0.35, skinBase);
-  thumbGrad.addColorStop(0.7, skinBase);
-  thumbGrad.addColorStop(1, skinShadow);
-  ctx.fillStyle = thumbGrad;
-  ctx.fill();
-
-  // Thumb nail
-  const tNailX = thumbEndX + thumbWidth * 0.15;
-  const tNailY = thumbY;
-  ctx.beginPath();
-  ctx.ellipse(tNailX, tNailY, thumbWidth * 0.22, thumbWidth * 0.28, 0, 0, Math.PI * 2);
-  ctx.fillStyle = nailColor;
-  ctx.fill();
-  ctx.strokeStyle = "rgba(180, 145, 120, 0.5)";
-  ctx.lineWidth = thumbWidth * 0.02;
-  ctx.stroke();
-
-  // Thumb knuckle crease
-  const tCreaseX = phoneX - thumbWidth * 0.05;
-  ctx.beginPath();
-  ctx.moveTo(tCreaseX, thumbY - thumbWidth * 0.3);
-  ctx.quadraticCurveTo(tCreaseX - thumbWidth * 0.03, thumbY, tCreaseX, thumbY + thumbWidth * 0.3);
-  ctx.strokeStyle = knuckleCrease;
-  ctx.lineWidth = thumbWidth * 0.035;
-  ctx.stroke();
-
-  ctx.restore();
-
-  // --- Palm shadow behind the phone (subtle depth) ---
-  ctx.save();
-  ctx.globalAlpha = 0.15;
-  ctx.beginPath();
-  // Shadow below and to the right of the phone
-  ctx.ellipse(
-    phoneX + phoneW * 0.5,
-    phoneY + phoneH + phoneH * 0.03,
-    phoneW * 0.45,
-    phoneH * 0.04,
-    0, 0, Math.PI * 2
-  );
-  ctx.fillStyle = "#000";
-  ctx.fill();
-  ctx.restore();
-
-  // --- Contact shadows where fingers meet phone edge ---
-  ctx.save();
-  ctx.globalAlpha = 0.2;
-  for (const finger of rightFingers) {
-    const fy = phoneY + phoneH * finger.yFrac;
-    ctx.beginPath();
-    ctx.ellipse(
-      phoneX + phoneW - 1,
-      fy,
-      fingerWidth * 0.15,
-      fingerWidth * 0.5,
-      0, 0, Math.PI * 2
-    );
+    ctx.ellipse(p1.x, p1.y, f.r * 1.1, f.r * 0.7, 0, 0, Math.PI * 2);
     ctx.fillStyle = "#000";
     ctx.fill();
+    ctx.restore();
+
+    drawTaperedDigit(ctx, p0, p1, p2, f.r, f.r * 0.82);
   }
-  // Thumb contact shadow
+
+  // --- Thumb: the dominant digit, sweeping across the lower screen ---
+  const thumbR0 = phoneW * 0.085;
+  const thumbR2 = thumbR0 * 0.78;
+  const tp0 = { x: phoneX + phoneW * 0.99, y: phoneY + phoneH * 0.94 }; // base, near the palm heel
+  const tp1 = { x: phoneX + phoneW * 0.72, y: phoneY + phoneH * 0.68 }; // bend
+  const tp2 = { x: phoneX + phoneW * 0.36, y: phoneY + phoneH * 0.60 }; // tip resting mid-screen
+
+  // Grounding shadow under the base of the thumb.
+  ctx.save();
+  ctx.globalAlpha = 0.22;
   ctx.beginPath();
-  ctx.ellipse(
-    phoneX + 1,
-    thumbY,
-    thumbWidth * 0.15,
-    thumbWidth * 0.5,
-    0, 0, Math.PI * 2
-  );
+  ctx.ellipse(tp0.x - thumbR0 * 0.3, tp0.y, thumbR0 * 1.3, thumbR0 * 0.9, -0.3, 0, Math.PI * 2);
   ctx.fillStyle = "#000";
   ctx.fill();
   ctx.restore();
+
+  drawTaperedDigit(ctx, tp0, tp1, tp2, thumbR0, thumbR2);
 }
 
 
