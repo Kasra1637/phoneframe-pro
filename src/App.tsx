@@ -7,7 +7,7 @@ import handOnlyParkImg from "@/assets/hand-only-park.png";
 import handOnlyLivingImg from "@/assets/hand-only-livingroom.png";
 
 // Phone rect within each hand-hold reference photo (fractions of image w/h).
-const HAND_IMG_ASPECT = 1024 / 1600;
+const HAND_IMG_ASPECT = 848 / 1264;
 const HAND_BG_SRC: Record<string, string> = {
   hand_park: handHoldParkImg,
   hand_living: handHoldLivingImg,
@@ -18,6 +18,13 @@ const HAND_ONLY_SRC: Record<string, string> = {
   hand_park: handOnlyParkImg,
   hand_living: handOnlyLivingImg,
   hand_desk: handOnlyDeskImg,
+};
+// Where the original phone was in each hand image (fractions of image w/h).
+// Used to position the app's device frame so fingers align naturally.
+const HAND_PHONE_RECT: Record<string, { cx: number; cy: number; w: number; h: number }> = {
+  hand_desk:   { cx: 0.476, cy: 0.558, w: 0.383, h: 0.672 },
+  hand_park:   { cx: 0.563, cy: 0.437, w: 0.473, h: 0.538 },
+  hand_living: { cx: 0.499, cy: 0.506, w: 0.600, h: 0.786 },
 };
 
 export default Index;
@@ -234,8 +241,6 @@ function Index() {
         // Layer 3: Hand-only PNG (arm, wrist, watch, fingers on top)
 
         // --- Layer 1: Clean background ---
-        // Do NOT draw the original photo (it contains a phone).
-        // Use a soft neutral fill that complements the scene.
         const canvasAspect = cw / ch;
         let hw: number, hh: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
@@ -253,12 +258,18 @@ function Index() {
         ctx.fillStyle = "#f5f0eb";
         ctx.fillRect(0, 0, cw, ch);
 
-        // --- Layer 2: Device frame with video ---
-        const phoneFit = Math.min(cw / phoneW, ch / phoneH) * scale * 0.75;
-        const drawW = phoneW * phoneFit;
-        const drawH = phoneH * phoneFit;
-        const phoneX = (cw - drawW) / 2;
-        const phoneY = (ch - drawH) / 2;
+        // --- Layer 2: Device frame positioned at hand's grip point ---
+        // Place the device frame exactly where the original phone was in
+        // the hand image, so fingers naturally wrap around it.
+        const phoneRect = HAND_PHONE_RECT[bg] || { cx: 0.5, cy: 0.5, w: 0.45, h: 0.7 };
+
+        // The device frame height is determined by the phone rect in the image
+        const drawH = hh * phoneRect.h;
+        const drawW = drawH * dev.aspect;
+
+        // Position: center of device frame aligns with where the phone was
+        const phoneX = hx + hw * phoneRect.cx - drawW / 2;
+        const phoneY = hy + hh * phoneRect.cy - drawH / 2;
 
         drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
 
