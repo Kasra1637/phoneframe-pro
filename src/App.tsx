@@ -234,9 +234,9 @@ function Index() {
         // Layer 3: Hand-only PNG (arm, wrist, watch, fingers on top)
 
         // --- Layer 1: Background scene ---
-        // Draw the original hand image as the background scene.
-        // The hand-only PNG will be composited on top, so the phone
-        // visible in this background will be hidden behind the device frame.
+        // Draw the original photo as a heavily blurred background.
+        // The blur eliminates the visible phone outline from the source
+        // while preserving the ambient scene colors and lighting.
         const canvasAspect = cw / ch;
         let hw: number, hh: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
@@ -251,7 +251,11 @@ function Index() {
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
+        ctx.save();
+        ctx.filter = `blur(${Math.round(cw * 0.02)}px)`;
         ctx.drawImage(handImg, hx, hy, hw, hh);
+        ctx.filter = "none";
+        ctx.restore();
 
         // --- Layer 2: Device frame with video ---
         const phoneFit = Math.min(cw / phoneW, ch / phoneH) * scale * 0.75;
