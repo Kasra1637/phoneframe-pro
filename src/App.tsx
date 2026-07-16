@@ -268,27 +268,12 @@ function Index() {
         }
         ctx.restore();
 
-        // Step 3: Draw the hand photo on top — fingers naturally cover the phone edges
-        ctx.drawImage(handImg, hx, hy, hw, hh);
-
-        // Step 4: Re-draw video into screen with "destination-over" wouldn't work,
-        // so we use a second pass: punch a hole in the hand image where the screen is,
-        // then fill with video. Actually simpler: draw hand, then draw video
-        // clipped to screen using "source-atop" compositing... 
-        // 
-        // Best approach: draw video FIRST (already done), then draw hand on top.
-        // The hand photo has an opaque phone with a dark/black screen area.
-        // We need to make the screen area transparent in the hand layer.
-        // We'll use destination-out to cut the screen hole, then composite.
-        //
-        // Simplest correct approach:
-        // 1. Draw video clipped to screen rect (done above)
-        // 2. Draw hand image on top BUT with the screen rect cut out
+        // Step 3: Draw hand image on top with the screen area cut out.
+        // This lets the video show through the screen hole while the hand
+        // (including fingers) naturally overlaps the phone edges.
         ctx.save();
-        // Clip to everything EXCEPT the screen interior (evenodd)
         ctx.beginPath();
         ctx.rect(0, 0, cw, ch);
-        // Counter-clockwise cutout for the screen
         roundRectCCW(ctx, scrX, scrY, scrW, scrH, scrR);
         ctx.clip("evenodd");
         ctx.drawImage(handImg, hx, hy, hw, hh);
