@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import handHoldDeskImg from "@/assets/hand-hold-desk.jpg";
 import handHoldParkImg from "@/assets/hand-hold-park.jpg";
@@ -18,25 +17,7 @@ const HAND_PHONE_RECTS: Record<string, { x: number; y: number; w: number; h: num
   hand_desk:   { x: 0.253, y: 0.196, w: 0.460, h: 0.518 },
 };
 
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "MockReel — Phone Mockup Video Generator" },
-      {
-        name: "description",
-        content:
-          "Drop a screen recording into a clean phone mockup and export transparent videos sized for TikTok, LinkedIn, and more.",
-      },
-      { property: "og:title", content: "MockReel — Phone Mockup Video Generator" },
-      {
-        property: "og:description",
-        content:
-          "Drop a screen recording into a clean phone mockup and export transparent videos sized for TikTok, LinkedIn, and more.",
-      },
-    ],
-  }),
-  component: Index,
-});
+export default Index;
 
 type DeviceId =
   | "s24"
