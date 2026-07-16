@@ -236,10 +236,10 @@ function Index() {
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
-        // Step 3: Draw the hand image BEHIND the phone.
-        // We draw the full image first — the phone frame will be drawn on top.
-        ctx.drawImage(handImg, hx, hy, hw, hh);
-
+        // Step 3: Draw the hand image BEHIND the phone, but EXCLUDE the
+        // area where the photo's own phone is visible. This prevents the
+        // double-phone effect. We clip out the device frame zone so only
+        // the hand/arm/background from the photo is drawn.
         // Step 4: Calculate where to place the app's device frame.
         // Position it centered where the hand grips in the photo.
         const phoneFit = Math.min(cw / phoneW, ch / phoneH) * scale * 0.75;
@@ -247,6 +247,31 @@ function Index() {
         const drawH = phoneH * phoneFit;
         const phoneX = (cw - drawW) / 2;
         const phoneY = (ch - drawH) / 2;
+
+        // Draw the hand image with the phone area cut out.
+        // Use "destination-out" compositing approach: draw everything
+        // EXCEPT the rectangle where our device frame will go.
+        ctx.save();
+        ctx.beginPath();
+        // Full canvas rect (outer boundary)
+        ctx.rect(0, 0, cw, ch);
+        // Cut out the phone area using counter-clockwise winding (hole)
+        const radius = drawW * dev.radiusRatio;
+        // Draw the phone shape as a hole (counter-clockwise)
+        const px = phoneX, py = phoneY, pw = drawW, ph = drawH, pr = radius;
+        ctx.moveTo(px + pr, py);
+        ctx.lineTo(px + pw - pr, py);
+        ctx.quadraticCurveTo(px + pw, py, px + pw, py + pr);
+        ctx.lineTo(px + pw, py + ph - pr);
+        ctx.quadraticCurveTo(px + pw, py + ph, px + pw - pr, py + ph);
+        ctx.lineTo(px + pr, py + ph);
+        ctx.quadraticCurveTo(px, py + ph, px, py + ph - pr);
+        ctx.lineTo(px, py + pr);
+        ctx.quadraticCurveTo(px, py, px + pr, py);
+        ctx.closePath();
+        ctx.clip("evenodd");
+        ctx.drawImage(handImg, hx, hy, hw, hh);
+        ctx.restore();
 
         // Step 5: Draw the app's proper device frame (with bezels, rail,
         // camera cutout, buttons, glass sheen) with the video inside.
