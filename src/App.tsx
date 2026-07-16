@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import handHoldDeskImg from "@/assets/hand-hold-desk.jpg";
 import handHoldParkImg from "@/assets/hand-hold-park.jpg";
 import handHoldLivingImg from "@/assets/hand-hold-livingroom.jpg";
+import handOnlyDeskImg from "@/assets/hand-only-desk.png";
+import handOnlyParkImg from "@/assets/hand-only-park.png";
+import handOnlyLivingImg from "@/assets/hand-only-livingroom.png";
 
 // Phone rect within each hand-hold reference photo (fractions of image w/h).
 const HAND_IMG_ASPECT = 1024 / 1600;
@@ -9,6 +12,12 @@ const HAND_BG_SRC: Record<string, string> = {
   hand_park: handHoldParkImg,
   hand_living: handHoldLivingImg,
   hand_desk: handHoldDeskImg,
+};
+// Hand-only transparent PNGs (arm, wrist, watch, fingers — no phone)
+const HAND_ONLY_SRC: Record<string, string> = {
+  hand_park: handOnlyParkImg,
+  hand_living: handOnlyLivingImg,
+  hand_desk: handOnlyDeskImg,
 };
 
 export default Index;
@@ -126,6 +135,7 @@ function Index() {
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const handImgRefs = useRef<Record<string, HTMLImageElement>>({});
+  const handOnlyRefs = useRef<Record<string, HTMLImageElement>>({});
 
 
   useEffect(() => {
@@ -135,6 +145,13 @@ function Index() {
       img.crossOrigin = "anonymous";
       img.src = src;
       img.onload = () => { handImgRefs.current[key] = img; };
+    });
+    Object.entries(HAND_ONLY_SRC).forEach(([key, src]) => {
+      if (handOnlyRefs.current[key]) return;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = src;
+      img.onload = () => { handOnlyRefs.current[key] = img; };
     });
   }, []);
 
@@ -197,6 +214,7 @@ function Index() {
       const handImgActive = bg.startsWith("hand_") ? handImgRefs.current[bg] : null;
       if (handImgActive) {
         const handImg = handImgActive;
+        const handOnlyImg = handOnlyRefs.current[bg];
 
         // Subtle handheld shake
         const t = performance.now() / 1000;
@@ -210,16 +228,15 @@ function Index() {
         ctx.rotate(sr);
         ctx.translate(-cw / 2, -ch / 2);
 
-        // --- Compositing: real hand + app device frame ---
-        // Strategy: Draw the hand image, then PAINT OVER the photo's phone
-        // area completely, then draw the app's device frame on top.
-        // Finally, re-draw ONLY the finger edges on top of the device.
+        // === CLEAN LAYERED COMPOSITING ===
+        // Layer 1: Background (the scene from the original photo)
+        // Layer 2: Device frame (the app's phone with video inside)
+        // Layer 3: Hand-only PNG (arm, wrist, watch, fingers on top)
 
-        // Step 1: Fill background
-        ctx.fillStyle = "#f5f0eb";
-        ctx.fillRect(0, 0, cw, ch);
-
-        // Step 2: Compute hand image placement (cover the canvas)
+        // --- Layer 1: Background scene ---
+        // Draw the original hand image as the background scene.
+        // The hand-only PNG will be composited on top, so the phone
+        // visible in this background will be hidden behind the device frame.
         const canvasAspect = cw / ch;
         let hw: number, hh: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
@@ -234,62 +251,21 @@ function Index() {
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
-        // Step 3: Calculate device frame position
+        ctx.drawImage(handImg, hx, hy, hw, hh);
+
+        // --- Layer 2: Device frame with video ---
         const phoneFit = Math.min(cw / phoneW, ch / phoneH) * scale * 0.75;
         const drawW = phoneW * phoneFit;
         const drawH = phoneH * phoneFit;
         const phoneX = (cw - drawW) / 2;
         const phoneY = (ch - drawH) / 2;
 
-        // Step 4: Draw the full hand image
-        ctx.drawImage(handImg, hx, hy, hw, hh);
-
-        // Step 5: COVER the photo's phone screen area completely.
-        // The photo's phone occupies a region in the center of the image.
-        // We paint over it with the background scene (sampled from the
-        // edges of the image) using a solid fill that matches the 
-        // surrounding scene. This erases the photo's phone entirely.
-        // We use a slightly oversized rectangle to ensure full coverage.
-        const coverPad = drawW * 0.08; // extra padding to cover photo phone edges
-        const coverX = phoneX - coverPad;
-        const coverY = phoneY - coverPad;
-        const coverW = drawW + coverPad * 2;
-        const coverH = drawH + coverPad * 2;
-        const coverR = drawW * dev.radiusRatio + coverPad;
-
-        // Sample the average background color from the hand image edges
-        // and use it to paint over the phone area seamlessly.
-        // For simplicity, use the neutral background fill.
-        ctx.save();
-        roundRect(ctx, coverX, coverY, coverW, coverH, coverR);
-        ctx.clip();
-        // Re-fill with background color to erase the photo's phone
-        ctx.fillStyle = "#f5f0eb";
-        ctx.fillRect(coverX, coverY, coverW, coverH);
-        ctx.restore();
-
-        // Step 6: Draw the app's proper device frame (with bezels, rail,
-        // camera cutout, buttons, glass sheen) with the video inside.
         drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
 
-        // Step 7: Re-draw the hand's fingers ON TOP of the device frame.
-        // ONLY draw in narrow strips along the edges where real fingers
-        // would overlap. Do NOT re-expose the photo's phone screen.
-        ctx.save();
-        ctx.beginPath();
-
-        // Thumb — narrow strip along the left bezel only
-        ctx.rect(phoneX - drawW * 0.04, phoneY + drawH * 0.50, drawW * 0.08, drawH * 0.45);
-
-        // Fingers — narrow strip along the right edge only
-        ctx.rect(phoneX + drawW * 0.96, phoneY + drawH * 0.18, drawW * 0.12, drawH * 0.65);
-
-        // Bottom palm/wrist below the phone
-        ctx.rect(phoneX - drawW * 0.15, phoneY + drawH * 0.94, drawW * 1.3, ch - (phoneY + drawH * 0.94));
-
-        ctx.clip();
-        ctx.drawImage(handImg, hx, hy, hw, hh);
-        ctx.restore();
+        // --- Layer 3: Hand-only overlay (fingers grip the device) ---
+        if (handOnlyImg) {
+          ctx.drawImage(handOnlyImg, hx, hy, hw, hh);
+        }
 
         ctx.restore();
 
