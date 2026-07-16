@@ -218,6 +218,7 @@ function Index() {
         ctx.rotate(sr);
         ctx.translate(-cw / 2, -ch / 2);
 
+        // Draw the hand image as the background layer
         ctx.drawImage(handImg, hx, hy, hw, hh);
 
         // Draw phone exactly over the blank phone rect in the (transformed) photo
@@ -227,6 +228,44 @@ function Index() {
         const pw = rect.w * hw;
         const ph = rect.h * hh;
         drawPhone(ctx, px, py, pw, ph, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+
+        // Re-draw the hand image on top, but ONLY the edges around the phone
+        // area (the fingers/thumb that wrap in front of the device). This
+        // creates a natural "hand gripping the phone" layering effect.
+        // We mask out the inner phone screen so the video remains visible,
+        // but the finger edges that overlap the phone body show through.
+        ctx.save();
+
+        // Create a clipping path that excludes the phone screen interior
+        // but includes everything else — this lets the fingers at the
+        // edges of the phone body show on top.
+        const phoneInset = pw * 0.06; // inset slightly so fingers on the bezel edges show
+        const screenX = px + phoneInset;
+        const screenY = py + phoneInset;
+        const screenW = pw - phoneInset * 2;
+        const screenH = ph - phoneInset * 2;
+        const screenR = pw * dev.radiusRatio * 0.7;
+
+        // Path = full canvas rect (CW) minus the phone screen area (CCW) = only outside the screen
+        ctx.beginPath();
+        ctx.rect(0, 0, cw, ch);
+        // Cut out the screen interior (counter-clockwise winding)
+        ctx.moveTo(screenX + screenR, screenY);
+        ctx.lineTo(screenX, screenY);
+        ctx.lineTo(screenX, screenY + screenH - screenR);
+        ctx.quadraticCurveTo(screenX, screenY + screenH, screenX + screenR, screenY + screenH);
+        ctx.lineTo(screenX + screenW - screenR, screenY + screenH);
+        ctx.quadraticCurveTo(screenX + screenW, screenY + screenH, screenX + screenW, screenY + screenH - screenR);
+        ctx.lineTo(screenX + screenW, screenY + screenR);
+        ctx.quadraticCurveTo(screenX + screenW, screenY, screenX + screenW - screenR, screenY);
+        ctx.lineTo(screenX + screenR, screenY);
+        ctx.closePath();
+        ctx.clip("evenodd");
+
+        // Draw the hand image again — only the finger portions outside the screen show
+        ctx.drawImage(handImg, hx, hy, hw, hh);
+
+        ctx.restore();
         ctx.restore();
       } else {
         paintBackground(ctx, cw, ch, bg, customColor);
