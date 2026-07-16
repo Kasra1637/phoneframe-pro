@@ -4,38 +4,33 @@ import handHoldParkImg from "@/assets/hand-hold-park.jpg";
 import handHoldLivingImg from "@/assets/hand-hold-livingroom.jpg";
 
 // Phone rect within each hand-hold reference photo (fractions of image w/h).
-// The photos have slightly different framings, so each gets its own rect.
 const HAND_IMG_ASPECT = 1024 / 1600;
 const HAND_BG_SRC: Record<string, string> = {
   hand_park: handHoldParkImg,
   hand_living: handHoldLivingImg,
   hand_desk: handHoldDeskImg,
 };
-const HAND_PHONE_RECTS: Record<string, { x: number; y: number; w: number; h: number }> = {
-  hand_park:   { x: 0.278, y: 0.125, w: 0.459, h: 0.600 },
-  hand_living: { x: 0.278, y: 0.125, w: 0.459, h: 0.600 },
-  hand_desk:   { x: 0.253, y: 0.196, w: 0.460, h: 0.518 },
+// Screen rect inside the phone in each hand photo (where to paint video).
+// These are tuned to land exactly on the phone screen visible in each photo.
+const HAND_SCREEN_RECTS: Record<string, { x: number; y: number; w: number; h: number; r: number }> = {
+  hand_park:   { x: 0.295, y: 0.148, w: 0.424, h: 0.555, r: 0.025 },
+  hand_living: { x: 0.295, y: 0.148, w: 0.424, h: 0.555, r: 0.025 },
+  hand_desk:   { x: 0.270, y: 0.218, w: 0.426, h: 0.478, r: 0.022 },
 };
 
 export default Index;
 
-type DeviceId =
-  | "s24"
-  | "s24_ultra"
-  | "note20"
-  | "zflip"
-  | "lg_v60"
-  | "lg_velvet"
-  | "lg_g8";
+
+type DeviceId = "s24" | "s24_ultra" | "note20" | "zflip" | "lg_v60" | "lg_velvet" | "lg_g8";
 
 type DeviceSpec = {
   id: DeviceId;
   label: string;
-  body: string; // bezel/frame color
-  rail: string; // side metal rail color
-  aspect: number; // width / height of phone body
-  radiusRatio: number; // corner radius as fraction of width
-  bezelRatio: number; // screen inset as fraction of width
+  body: string;
+  rail: string;
+  aspect: number;
+  radiusRatio: number;
+  bezelRatio: number;
   camera: "punch-center" | "punch-left" | "notch-wide" | "notch-drop" | "punch-corner";
 };
 
@@ -49,10 +44,10 @@ const DEVICES: DeviceSpec[] = [
   { id: "lg_g8",     label: "LG G8 ThinQ",              body: "#0e0e12", rail: "#33343a", aspect: 0.472, radiusRatio: 0.075, bezelRatio: 0.034, camera: "notch-wide" },
 ];
 
+
 type PresetId = "tiktok" | "linkedin_square" | "linkedin_landscape" | "story" | "youtube" | "source";
 
 const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string }[] = [
-
   { id: "tiktok", label: "TikTok / Reels / Shorts", w: 1080, h: 1920, note: "9:16" },
   { id: "story", label: "Instagram Story", w: 1080, h: 1920, note: "9:16" },
   { id: "linkedin_square", label: "LinkedIn Square", w: 1200, h: 1200, note: "1:1" },
@@ -74,6 +69,39 @@ const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "hand_desk", label: "Hand — Desk", preview: `url(${handHoldDeskImg})` },
   { id: "custom", label: "Custom color", preview: "custom" },
 ];
+
+
+// --- Collapsible Section Component ---
+function Section({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-white/[0.06] pb-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between py-2 text-left"
+      >
+        <span className="text-[11px] uppercase tracking-widest text-white/50 font-medium">{title}</span>
+        <svg
+          className={`h-3.5 w-3.5 text-white/40 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && <div className="pt-1 pb-1">{children}</div>}
+    </div>
+  );
+}
+
 
 function Index() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -106,6 +134,7 @@ function Index() {
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const handImgRefs = useRef<Record<string, HTMLImageElement>>({});
 
+
   useEffect(() => {
     Object.entries(HAND_BG_SRC).forEach(([key, src]) => {
       if (handImgRefs.current[key]) return;
@@ -134,6 +163,7 @@ function Index() {
     };
   }, [videoUrl]);
 
+
   // Preview loop
   useEffect(() => {
     const canvas = previewCanvasRef.current;
@@ -145,13 +175,9 @@ function Index() {
     const dev = DEVICES.find((d) => d.id === device)!;
     const pre = PRESETS.find((p) => p.id === preset)!;
 
-    // Phone uses its own realistic body aspect, not the video's aspect.
-    // Base height in pixels; width derived from device aspect.
-    // mockupStretchY lets the user stretch the mockup vertically to fit the uploaded video.
     const basePhoneH = 1800;
     const phoneW = basePhoneH * dev.aspect;
     const phoneH = basePhoneH * mockupStretchY;
-
 
     let cw = pre.w;
     let ch = pre.h;
@@ -168,7 +194,6 @@ function Index() {
       const handImgActive = bg.startsWith("hand_") ? handImgRefs.current[bg] : null;
       if (handImgActive) {
         const handImg = handImgActive;
-        // Paint a neutral fill behind so any exposed edge (after pan/zoom) isn't blank/transparent.
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, cw, ch);
 
@@ -181,73 +206,87 @@ function Index() {
           hh = ch;
           hw = ch * HAND_IMG_ASPECT;
         }
-        // Apply user zoom, then user pan (in fractions of canvas w/h).
         hw *= handZoom;
         hh *= handZoom;
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
-        // Subtle handheld shake — combine two frequencies for natural jitter
+
+        // Subtle handheld shake
         const t = performance.now() / 1000;
-        const shakeAmt = Math.min(cw, ch) * 0.006;
+        const shakeAmt = Math.min(cw, ch) * 0.004;
         const sx = Math.sin(t * 2.1) * shakeAmt + Math.sin(t * 5.7) * shakeAmt * 0.4;
         const sy = Math.cos(t * 1.7) * shakeAmt + Math.cos(t * 6.3) * shakeAmt * 0.4;
-        const sr = Math.sin(t * 1.1) * 0.006;
+        const sr = Math.sin(t * 1.1) * 0.004;
 
         ctx.save();
         ctx.translate(cw / 2 + sx, ch / 2 + sy);
         ctx.rotate(sr);
         ctx.translate(-cw / 2, -ch / 2);
 
-        // Draw the hand image as the background layer
+        // --- HAND MODE: paint video INTO the photo's screen, then overlay the hand photo ---
+        // Step 1: Compute the screen rect position in canvas coords
+        const rect = HAND_SCREEN_RECTS[bg] ?? { x: 0.295, y: 0.148, w: 0.424, h: 0.555, r: 0.025 };
+        const scrX = hx + rect.x * hw;
+        const scrY = hy + rect.y * hh;
+        const scrW = rect.w * hw;
+        const scrH = rect.h * hh;
+        const scrR = rect.r * hw;
+
+        // Step 2: Draw video content into the screen area (clipped to rounded rect)
+        ctx.save();
+        roundRect(ctx, scrX, scrY, scrW, scrH, scrR);
+        ctx.clip();
+        ctx.fillStyle = "#000";
+        ctx.fillRect(scrX, scrY, scrW, scrH);
+        if (video.readyState >= 2) {
+          const vw = video.videoWidth;
+          const vh = video.videoHeight;
+          let baseScale: number;
+          if (videoFit === "contain") baseScale = Math.min(scrW / vw, scrH / vh);
+          else baseScale = Math.max(scrW / vw, scrH / vh);
+          const s = baseScale * videoScale;
+          const dw = vw * s;
+          const dh = vh * s;
+          const maxOffX = Math.max(0, (dw - scrW) / 2);
+          const maxOffY = Math.max(0, (dh - scrH) / 2);
+          const offX = (videoOffsetX / 100) * maxOffX;
+          const offY = (videoOffsetY / 100) * maxOffY;
+          const dx = scrX + (scrW - dw) / 2 + offX;
+          const dy = scrY + (scrH - dh) / 2 + offY;
+          ctx.drawImage(video, dx, dy, dw, dh);
+        }
+        ctx.restore();
+
+        // Step 3: Draw the hand photo on top — fingers naturally cover the phone edges
         ctx.drawImage(handImg, hx, hy, hw, hh);
 
-        // Draw phone exactly over the blank phone rect in the (transformed) photo
-        const rect = HAND_PHONE_RECTS[bg] ?? { x: 0.278, y: 0.125, w: 0.459, h: 0.6 };
-        const px = hx + rect.x * hw;
-        const py = hy + rect.y * hh;
-        const pw = rect.w * hw;
-        const ph = rect.h * hh;
-        drawPhone(ctx, px, py, pw, ph, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
-
-        // Re-draw the hand image on top, but ONLY the edges around the phone
-        // area (the fingers/thumb that wrap in front of the device). This
-        // creates a natural "hand gripping the phone" layering effect.
-        // We mask out the inner phone screen so the video remains visible,
-        // but the finger edges that overlap the phone body show through.
+        // Step 4: Re-draw video into screen with "destination-over" wouldn't work,
+        // so we use a second pass: punch a hole in the hand image where the screen is,
+        // then fill with video. Actually simpler: draw hand, then draw video
+        // clipped to screen using "source-atop" compositing... 
+        // 
+        // Best approach: draw video FIRST (already done), then draw hand on top.
+        // The hand photo has an opaque phone with a dark/black screen area.
+        // We need to make the screen area transparent in the hand layer.
+        // We'll use destination-out to cut the screen hole, then composite.
+        //
+        // Simplest correct approach:
+        // 1. Draw video clipped to screen rect (done above)
+        // 2. Draw hand image on top BUT with the screen rect cut out
         ctx.save();
-
-        // Create a clipping path that excludes the phone screen interior
-        // but includes everything else — this lets the fingers at the
-        // edges of the phone body show on top.
-        const phoneInset = pw * 0.06; // inset slightly so fingers on the bezel edges show
-        const screenX = px + phoneInset;
-        const screenY = py + phoneInset;
-        const screenW = pw - phoneInset * 2;
-        const screenH = ph - phoneInset * 2;
-        const screenR = pw * dev.radiusRatio * 0.7;
-
-        // Path = full canvas rect (CW) minus the phone screen area (CCW) = only outside the screen
+        // Clip to everything EXCEPT the screen interior (evenodd)
         ctx.beginPath();
         ctx.rect(0, 0, cw, ch);
-        // Cut out the screen interior (counter-clockwise winding)
-        ctx.moveTo(screenX + screenR, screenY);
-        ctx.lineTo(screenX, screenY);
-        ctx.lineTo(screenX, screenY + screenH - screenR);
-        ctx.quadraticCurveTo(screenX, screenY + screenH, screenX + screenR, screenY + screenH);
-        ctx.lineTo(screenX + screenW - screenR, screenY + screenH);
-        ctx.quadraticCurveTo(screenX + screenW, screenY + screenH, screenX + screenW, screenY + screenH - screenR);
-        ctx.lineTo(screenX + screenW, screenY + screenR);
-        ctx.quadraticCurveTo(screenX + screenW, screenY, screenX + screenW - screenR, screenY);
-        ctx.lineTo(screenX + screenR, screenY);
-        ctx.closePath();
+        // Counter-clockwise cutout for the screen
+        roundRectCCW(ctx, scrX, scrY, scrW, scrH, scrR);
         ctx.clip("evenodd");
-
-        // Draw the hand image again — only the finger portions outside the screen show
         ctx.drawImage(handImg, hx, hy, hw, hh);
+        ctx.restore();
 
         ctx.restore();
-        ctx.restore();
+
+
       } else {
         paintBackground(ctx, cw, ch, bg, customColor);
         const fit = Math.min(cw / phoneW, ch / phoneH) * scale;
@@ -266,6 +305,7 @@ function Index() {
     };
   }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY, handOffsetX, handOffsetY, handZoom]);
 
+
   const exportVideo = async () => {
     const video = videoRef.current;
     const canvas = previewCanvasRef.current;
@@ -277,9 +317,6 @@ function Index() {
     setResult(null);
 
     try {
-      // Pick best codec. Always include an audio codec in the MIME string so
-      // the recorder muxes the mixed audio track (some browsers drop audio
-      // when only a video codec is requested).
       const transparent = bg === "transparent";
       const mp4Candidates = [
         'video/mp4;codecs="avc1.42E01F,mp4a.40.2"',
@@ -305,14 +342,12 @@ function Index() {
       const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
 
       const stream = canvas.captureStream(30);
-
       video.loop = false;
       video.muted = false;
       video.volume = 1;
-
       let audioTrackAdded = false;
 
-      // Prefer the browser's native media-element capture for the original audio track.
+
       try {
         const capturableVideo = video as HTMLVideoElement & {
           captureStream?: () => MediaStream;
@@ -328,7 +363,6 @@ function Index() {
         console.warn("Native audio capture failed:", captureErr);
       }
 
-      // Fallback: mix the uploaded video's audio into the recording via WebAudio.
       try {
         if (!audioTrackAdded && !audioCtxRef.current) {
           const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
@@ -338,13 +372,11 @@ function Index() {
           const ac = audioCtxRef.current;
           if (ac.state === "suspended") await ac.resume();
           if (!audioSrcRef.current) {
-            // createMediaElementSource can only be called once per element
             audioSrcRef.current = ac.createMediaElementSource(video);
           }
           if (!audioDestRef.current) {
             audioDestRef.current = ac.createMediaStreamDestination();
             audioSrcRef.current.connect(audioDestRef.current);
-            // Also route to speakers so the user can hear during export.
             audioSrcRef.current.connect(ac.destination);
           }
           for (const track of audioDestRef.current.stream.getAudioTracks()) {
@@ -353,9 +385,9 @@ function Index() {
           }
         }
       } catch (audioErr) {
-        // Audio capture is best-effort; continue with video-only if it fails
         console.warn("Audio capture failed:", audioErr);
       }
+
 
       const recorder = new MediaRecorder(stream, {
         mimeType: mime,
@@ -364,7 +396,6 @@ function Index() {
       });
       const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-
       const done = new Promise<Blob>((res) => {
         recorder.onstop = () => res(new Blob(chunks, { type: mime }));
       });
@@ -379,11 +410,8 @@ function Index() {
         const tick = () => {
           const elapsed = (performance.now() - start) / 1000;
           setProgress(Math.min(1, elapsed / duration));
-          if (video.ended || elapsed >= duration) {
-            resolve();
-          } else {
-            requestAnimationFrame(tick);
-          }
+          if (video.ended || elapsed >= duration) resolve();
+          else requestAnimationFrame(tick);
         };
         tick();
       });
@@ -400,13 +428,19 @@ function Index() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      if (video) {
-        video.loop = true;
-        video.muted = true;
-      }
+      if (video) { video.loop = true; video.muted = true; }
       setRecording(false);
       setProgress(0);
     }
+  };
+
+
+  const selectStyle = {
+    backgroundImage:
+      "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M6 8L0 0h12z'/></svg>\")",
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 12px center",
+    paddingRight: "32px",
   };
 
   return (
@@ -418,8 +452,8 @@ function Index() {
             "radial-gradient(60% 50% at 20% 0%, #2a1b4a 0%, transparent 60%), radial-gradient(50% 40% at 100% 20%, #0c3a4a 0%, transparent 60%)",
         }}
       />
-      <div className="relative mx-auto max-w-7xl px-6 py-10">
-        <header className="mb-6 flex items-center justify-between">
+      <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        <header className="mb-4 flex items-center justify-between">
           <div className="text-xs uppercase tracking-[0.3em] text-white/50">MockReel</div>
           <button
             type="button"
@@ -430,111 +464,74 @@ function Index() {
           </button>
         </header>
 
+        <div className={`grid gap-5 ${sidebarOpen ? "lg:grid-cols-[320px_1fr]" : "lg:grid-cols-1"}`}>
 
-        <div className={`grid gap-6 ${sidebarOpen ? "lg:grid-cols-[360px_1fr]" : "lg:grid-cols-1"}`}>
-          {/* Controls */}
+
+          {/* Controls Sidebar */}
           {sidebarOpen && (
-          <aside className="space-y-6 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur">
-            <section>
-              <label className="text-xs uppercase tracking-widest text-white/50">1. Upload recording</label>
+          <aside className="max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 backdrop-blur scrollbar-thin">
+
+            {/* Upload — always open */}
+            <Section title="Upload recording" defaultOpen={true}>
               <label
-                className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/15 bg-white/[0.02] px-4 py-8 text-center transition hover:border-white/40 hover:bg-white/[0.05]"
+                className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/15 bg-white/[0.02] px-3 py-5 text-center transition hover:border-white/40 hover:bg-white/[0.05]"
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const f = e.dataTransfer.files?.[0];
-                  if (f) handleFile(f);
-                }}
+                onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
               >
-                <input
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-                />
+                <input type="file" accept="video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
                 <div className="text-sm text-white/80">{videoUrl ? "Replace video" : "Click or drop a video"}</div>
-                <div className="mt-1 text-xs text-white/40">MP4, MOV, WebM — portrait recommended</div>
+                <div className="mt-1 text-[11px] text-white/40">MP4, MOV, WebM — portrait recommended</div>
               </label>
               {videoMeta && (
-                <div className="mt-2 text-xs text-white/50">
-                  {videoMeta.w}×{videoMeta.h} • {videoMeta.d.toFixed(1)}s
-                </div>
+                <div className="mt-1.5 text-[11px] text-white/50">{videoMeta.w}x{videoMeta.h} &bull; {videoMeta.d.toFixed(1)}s</div>
               )}
-            </section>
+            </Section>
 
-            <section>
-              <label htmlFor="device-select" className="text-xs uppercase tracking-widest text-white/50">
-                2. Device frame
-              </label>
+            {/* Device Frame */}
+            <Section title="Device frame">
               <select
-                id="device-select"
                 value={device}
                 onChange={(e) => setDevice(e.target.value as DeviceId)}
-                className="mt-3 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
-                style={{
-                  backgroundImage:
-                    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M6 8L0 0h12z'/></svg>\")",
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "right 12px center",
-                  paddingRight: "32px",
-                }}
+                className="w-full appearance-none rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
+                style={selectStyle}
               >
                 {DEVICES.map((d) => (
-                  <option key={d.id} value={d.id} className="bg-[#1a1a22] text-white">
-                    {d.label}
-                  </option>
+                  <option key={d.id} value={d.id} className="bg-[#1a1a22] text-white">{d.label}</option>
                 ))}
               </select>
-            </section>
+            </Section>
 
-            <section>
-              <label htmlFor="preset-select" className="text-xs uppercase tracking-widest text-white/50">
-                3. Platform preset
-              </label>
+
+            {/* Platform Preset */}
+            <Section title="Platform preset">
               <select
-                id="preset-select"
                 value={preset}
-                onChange={(e) => {
-                  setPreset(e.target.value as PresetId);
-                }}
-                className="mt-3 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
-                style={{
-                  backgroundImage:
-                    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M6 8L0 0h12z'/></svg>\")",
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "right 12px center",
-                  paddingRight: "32px",
-                }}
+                onChange={(e) => setPreset(e.target.value as PresetId)}
+                className="w-full appearance-none rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
+                style={selectStyle}
               >
                 {PRESETS.map((p) => (
                   <option key={p.id} value={p.id} className="bg-[#1a1a22] text-white">
-                    {p.label} — {p.id === "source" ? "auto" : `${p.w}×${p.h}`}
+                    {p.label} — {p.id === "source" ? "auto" : `${p.w}x${p.h}`}
                   </option>
                 ))}
               </select>
-            </section>
+            </Section>
 
-
-            <section>
-              <label className="text-xs uppercase tracking-widest text-white/50">4. Background</label>
-              <div className="mt-3 grid grid-cols-4 gap-2">
+            {/* Background — open by default */}
+            <Section title="Background" defaultOpen={true}>
+              <div className="grid grid-cols-5 gap-1.5">
                 {BACKGROUNDS.map((b) => (
                   <button
                     key={b.id}
                     onClick={() => setBg(b.id)}
                     title={b.label}
-                    className={`group relative aspect-square overflow-hidden rounded-lg border transition ${
-                      bg === b.id ? "border-white ring-2 ring-white" : "border-white/15 hover:border-white/40"
+                    className={`aspect-square overflow-hidden rounded-md border transition ${
+                      bg === b.id ? "border-white ring-1 ring-white" : "border-white/15 hover:border-white/40"
                     }`}
                     style={
                       b.preview === "transparent"
-                        ? {
-                            backgroundImage:
-                              "linear-gradient(45deg,#666 25%,transparent 25%),linear-gradient(-45deg,#666 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#666 75%),linear-gradient(-45deg,transparent 75%,#666 75%)",
-                            backgroundSize: "10px 10px",
-                            backgroundPosition: "0 0,0 5px,5px -5px,-5px 0",
-                            backgroundColor: "#222",
-                          }
+                        ? { backgroundImage: "linear-gradient(45deg,#666 25%,transparent 25%),linear-gradient(-45deg,#666 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#666 75%),linear-gradient(-45deg,transparent 75%,#666 75%)", backgroundSize: "8px 8px", backgroundPosition: "0 0,0 4px,4px -4px,-4px 0", backgroundColor: "#222" }
                         : b.preview === "custom"
                           ? { background: customColor }
                           : b.id.startsWith("hand_")
@@ -545,280 +542,130 @@ function Index() {
                 ))}
               </div>
               {bg === "custom" && (
-                <input
-                  type="color"
-                  value={customColor}
-                  onChange={(e) => setCustomColor(e.target.value)}
-                  className="mt-2 h-9 w-full cursor-pointer rounded-lg bg-transparent"
-                />
+                <input type="color" value={customColor} onChange={(e) => setCustomColor(e.target.value)} className="mt-2 h-8 w-full cursor-pointer rounded-lg bg-transparent" />
               )}
-              {bg.startsWith("hand_") && (
-                <div className="mt-3 space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
-                  <div className="flex items-center justify-between text-xs text-white/60">
-                    <span>Hand + phone position &amp; zoom</span>
-                    <button
-                      type="button"
-                      className="rounded-md border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/10"
-                      onClick={() => { setHandOffsetX(0); setHandOffsetY(0); setHandZoom(1); }}
-                    >
-                      Reset
-                    </button>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-white/60">
-                      Horizontal ({(handOffsetX * 100).toFixed(0)}%)
-                    </label>
-                    <input
-                      type="range"
-                      min={-0.8}
-                      max={0.8}
-                      step={0.01}
-                      value={handOffsetX}
-                      onChange={(e) => setHandOffsetX(Number(e.target.value))}
-                      className="w-full accent-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-white/60">
-                      Vertical ({(handOffsetY * 100).toFixed(0)}%)
-                    </label>
-                    <input
-                      type="range"
-                      min={-0.8}
-                      max={0.8}
-                      step={0.01}
-                      value={handOffsetY}
-                      onChange={(e) => setHandOffsetY(Number(e.target.value))}
-                      className="w-full accent-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-white/60">
-                      Zoom ({handZoom.toFixed(2)}x)
-                    </label>
-                    <input
-                      type="range"
-                      min={0.5}
-                      max={2.5}
-                      step={0.01}
-                      value={handZoom}
-                      onChange={(e) => setHandZoom(Number(e.target.value))}
-                      className="w-full accent-white"
-                    />
-                  </div>
-                  <p className="text-[10px] text-white/40">
-                    Tip: drag the preview to reposition, scroll to zoom.
-                  </p>
-                </div>
-              )}
-            </section>
+            </Section>
 
-            <section>
-              <label className="text-xs uppercase tracking-widest text-white/50">
-                5. Phone size ({Math.round(scale * 100)}%)
-              </label>
-              <input
-                type="range"
-                min={0.3}
-                max={1}
-                step={0.01}
-                value={scale}
-                onChange={(e) => setScale(Number(e.target.value))}
-                className="mt-3 w-full accent-white"
-              />
-            </section>
 
-            <section>
-              <div className="flex items-center justify-between">
-                <label className="text-xs uppercase tracking-widest text-white/50">
-                  6. Mockup height ({Math.round(mockupStretchY * 100)}%)
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setMockupStretchY(1)}
-                  className="text-[11px] text-white/50 transition hover:text-white"
-                >
-                  Reset
-                </button>
-              </div>
-              <input
-                type="range"
-                min={0.5}
-                max={2}
-                step={0.01}
-                value={mockupStretchY}
-                onChange={(e) => setMockupStretchY(Number(e.target.value))}
-                className="mt-3 w-full accent-white"
-              />
-              <p className="mt-2 text-[11px] leading-relaxed text-white/40">
-                Stretch or shrink the phone mockup vertically so it matches the uploaded video's aspect ratio.
-              </p>
-            </section>
-
-            {videoUrl && (
-              <section className="space-y-5 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+            {/* Hand Position (only when hand bg selected) */}
+            {bg.startsWith("hand_") && (
+            <Section title="Hand position">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs uppercase tracking-widest text-white/50">7. Video crop</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVideoFit("cover");
-                      setVideoScale(1);
-                      setVideoOffsetX(0);
-                      setVideoOffsetY(0);
-                    }}
-                    className="text-[11px] text-white/50 transition hover:text-white"
-                  >
-                    Reset
-                  </button>
+                  <span className="text-[11px] text-white/50">Pan &amp; zoom</span>
+                  <button type="button" className="text-[10px] text-white/50 hover:text-white" onClick={() => { setHandOffsetX(0); setHandOffsetY(0); setHandZoom(1); }}>Reset</button>
                 </div>
-
                 <div>
-                  <label htmlFor="video-fit" className="text-[11px] text-white/60">
-                    Fit mode
-                  </label>
-                  <select
-                    id="video-fit"
-                    value={videoFit}
-                    onChange={(e) => setVideoFit(e.target.value as "cover" | "contain" | "fill")}
-                    className="mt-1.5 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60"
-                    style={{
-                      backgroundImage:
-                        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M6 8L0 0h12z'/></svg>\")",
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 10px center",
-                      paddingRight: "28px",
-                    }}
-                  >
-                    <option value="cover" className="bg-[#1a1a22] text-white">
-                      Cover — fill screen, crop edges
-                    </option>
-                    <option value="contain" className="bg-[#1a1a22] text-white">
-                      Contain — fit entire video
-                    </option>
-                    <option value="fill" className="bg-[#1a1a22] text-white">
-                      Fill — stretch to screen
-                    </option>
-                  </select>
+                  <label className="text-[10px] text-white/40">H: {(handOffsetX * 100).toFixed(0)}%</label>
+                  <input type="range" min={-0.8} max={0.8} step={0.01} value={handOffsetX} onChange={(e) => setHandOffsetX(Number(e.target.value))} className="w-full accent-white h-1" />
                 </div>
-
                 <div>
-                  <label className="flex justify-between text-[11px] text-white/60">
-                    <span>Zoom</span>
-                    <span>{videoScale.toFixed(2)}x</span>
-                  </label>
-                  <input
-                    type="range"
-                    min={0.5}
-                    max={3}
-                    step={0.01}
-                    value={videoScale}
-                    onChange={(e) => setVideoScale(Number(e.target.value))}
-                    className="mt-1.5 w-full accent-white"
-                  />
+                  <label className="text-[10px] text-white/40">V: {(handOffsetY * 100).toFixed(0)}%</label>
+                  <input type="range" min={-0.8} max={0.8} step={0.01} value={handOffsetY} onChange={(e) => setHandOffsetY(Number(e.target.value))} className="w-full accent-white h-1" />
                 </div>
-
                 <div>
-                  <label className="flex justify-between text-[11px] text-white/60">
-                    <span>Horizontal offset</span>
-                    <span>{videoOffsetX}%</span>
-                  </label>
-                  <input
-                    type="range"
-                    min={-100}
-                    max={100}
-                    step={1}
-                    value={videoOffsetX}
-                    onChange={(e) => setVideoOffsetX(Number(e.target.value))}
-                    className="mt-1.5 w-full accent-white"
-                  />
+                  <label className="text-[10px] text-white/40">Zoom: {handZoom.toFixed(2)}x</label>
+                  <input type="range" min={0.5} max={2.5} step={0.01} value={handZoom} onChange={(e) => setHandZoom(Number(e.target.value))} className="w-full accent-white h-1" />
                 </div>
-
-                <div>
-                  <label className="flex justify-between text-[11px] text-white/60">
-                    <span>Vertical offset</span>
-                    <span>{videoOffsetY}%</span>
-                  </label>
-                  <input
-                    type="range"
-                    min={-100}
-                    max={100}
-                    step={1}
-                    value={videoOffsetY}
-                    onChange={(e) => setVideoOffsetY(Number(e.target.value))}
-                    className="mt-1.5 w-full accent-white"
-                  />
-                </div>
-              </section>
+              </div>
+            </Section>
             )}
 
-            <section>
-              <label htmlFor="format-select" className="text-xs uppercase tracking-widest text-white/50">
-                8. Export format
-              </label>
+            {/* Phone Size (hidden in hand mode since the photo determines it) */}
+            {!bg.startsWith("hand_") && (
+            <Section title={`Phone size (${Math.round(scale * 100)}%)`}>
+              <input type="range" min={0.3} max={1} step={0.01} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="w-full accent-white" />
+            </Section>
+            )}
+
+            {/* Mockup Height */}
+            {!bg.startsWith("hand_") && (
+            <Section title={`Mockup height (${Math.round(mockupStretchY * 100)}%)`}>
+              <div className="flex items-center gap-2">
+                <input type="range" min={0.5} max={2} step={0.01} value={mockupStretchY} onChange={(e) => setMockupStretchY(Number(e.target.value))} className="flex-1 accent-white" />
+                <button type="button" onClick={() => setMockupStretchY(1)} className="text-[10px] text-white/50 hover:text-white">Reset</button>
+              </div>
+            </Section>
+            )}
+
+
+            {/* Video Crop */}
+            {videoUrl && (
+            <Section title="Video crop">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <select value={videoFit} onChange={(e) => setVideoFit(e.target.value as "cover" | "contain" | "fill")} className="appearance-none rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-white outline-none" style={selectStyle}>
+                    <option value="cover" className="bg-[#1a1a22]">Cover</option>
+                    <option value="contain" className="bg-[#1a1a22]">Contain</option>
+                    <option value="fill" className="bg-[#1a1a22]">Fill</option>
+                  </select>
+                  <button type="button" onClick={() => { setVideoFit("cover"); setVideoScale(1); setVideoOffsetX(0); setVideoOffsetY(0); }} className="text-[10px] text-white/50 hover:text-white">Reset</button>
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/40">Zoom: {videoScale.toFixed(2)}x</label>
+                  <input type="range" min={0.5} max={3} step={0.01} value={videoScale} onChange={(e) => setVideoScale(Number(e.target.value))} className="w-full accent-white h-1" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/40">H offset: {videoOffsetX}%</label>
+                  <input type="range" min={-100} max={100} step={1} value={videoOffsetX} onChange={(e) => setVideoOffsetX(Number(e.target.value))} className="w-full accent-white h-1" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/40">V offset: {videoOffsetY}%</label>
+                  <input type="range" min={-100} max={100} step={1} value={videoOffsetY} onChange={(e) => setVideoOffsetY(Number(e.target.value))} className="w-full accent-white h-1" />
+                </div>
+              </div>
+            </Section>
+            )}
+
+            {/* Export Format */}
+            <Section title="Export format">
               <select
-                id="format-select"
                 value={bg === "transparent" ? "webm" : exportFormat}
                 disabled={bg === "transparent"}
                 onChange={(e) => setExportFormat(e.target.value as "auto" | "mp4" | "webm")}
-                className="mt-3 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60 disabled:opacity-50"
-                style={{
-                  backgroundImage:
-                    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M6 8L0 0h12z'/></svg>\")",
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "right 12px center",
-                  paddingRight: "32px",
-                }}
+                className="w-full appearance-none rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition hover:border-white/30 focus:border-white/60 disabled:opacity-50"
+                style={selectStyle}
               >
-                <option value="auto" className="bg-[#1a1a22] text-white">Auto — MP4 (H.264 + AAC)</option>
-                <option value="mp4" className="bg-[#1a1a22] text-white">MP4 — TikTok / LinkedIn / Reels</option>
-                <option value="webm" className="bg-[#1a1a22] text-white">WebM — VP9 + Opus</option>
+                <option value="auto" className="bg-[#1a1a22] text-white">Auto (MP4)</option>
+                <option value="mp4" className="bg-[#1a1a22] text-white">MP4</option>
+                <option value="webm" className="bg-[#1a1a22] text-white">WebM</option>
               </select>
-              <p className="mt-2 text-[11px] leading-relaxed text-white/40">
-                MP4 with AAC audio uploads cleanly to TikTok, LinkedIn, Reels, YouTube Shorts. Transparent background forces WebM.
-              </p>
-            </section>
+            </Section>
 
-            <button
-              disabled={!videoUrl || recording}
-              onClick={exportVideo}
-              className="w-full rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-40"
-            >
-              {recording
-                ? `Recording… ${Math.round(progress * 100)}%`
-                : bg === "transparent"
-                  ? "Export transparent WebM"
-                  : "Export MP4 (ready to post)"}
-            </button>
-            {error && <div className="rounded-lg bg-red-500/10 p-3 text-xs text-red-300">{error}</div>}
-            <p className="text-[11px] leading-relaxed text-white/40">
-              {bg === "transparent"
-                ? "Transparent WebM (VP9 alpha + Opus audio). Great for layering — note that TikTok and LinkedIn flatten alpha to black on upload. Pick a background to get a post-ready MP4 instead."
-                : "Recorded with your uploaded video's original audio track. Direct upload to TikTok, LinkedIn, Reels, and YouTube Shorts."}
-            </p>
+
+            {/* Export Button */}
+            <div className="pt-3">
+              <button
+                disabled={!videoUrl || recording}
+                onClick={exportVideo}
+                className="w-full rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-40"
+              >
+                {recording
+                  ? `Recording... ${Math.round(progress * 100)}%`
+                  : bg === "transparent"
+                    ? "Export transparent WebM"
+                    : "Export MP4"}
+              </button>
+              {error && <div className="mt-2 rounded-lg bg-red-500/10 p-2 text-[11px] text-red-300">{error}</div>}
+            </div>
+
           </aside>
           )}
 
 
           {/* Preview */}
-          <main className="rounded-3xl border border-white/10 bg-[length:20px_20px] p-6"
+          <main className="rounded-2xl border border-white/10 bg-[length:20px_20px] p-4"
             style={{
-              backgroundImage:
-                "linear-gradient(45deg, #1a1a22 25%, transparent 25%), linear-gradient(-45deg, #1a1a22 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1a1a22 75%), linear-gradient(-45deg, transparent 75%, #1a1a22 75%)",
+              backgroundImage: "linear-gradient(45deg, #1a1a22 25%, transparent 25%), linear-gradient(-45deg, #1a1a22 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1a1a22 75%), linear-gradient(-45deg, transparent 75%, #1a1a22 75%)",
               backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0",
               backgroundColor: "#101018",
             }}
           >
-            <div className="mb-3 flex items-center justify-between text-xs text-white/50">
-              <span>Live preview (checkerboard = transparent)</span>
-              <span>
-                {PRESETS.find((p) => p.id === preset)?.label}
-                {previewCanvasRef.current
-                  ? ` • ${previewCanvasRef.current.width}×${previewCanvasRef.current.height}`
-                  : ""}
-              </span>
+            <div className="mb-2 flex items-center justify-between text-[11px] text-white/50">
+              <span>Live preview</span>
+              <span>{PRESETS.find((p) => p.id === preset)?.label}</span>
             </div>
-            <div className="flex w-full items-center justify-center overflow-hidden rounded-2xl" style={{ height: "min(70vh, 640px)" }}>
+            <div className="flex w-full items-center justify-center overflow-hidden rounded-xl" style={{ height: "min(72vh, 660px)" }}>
               {videoUrl ? (
                 <canvas
                   ref={previewCanvasRef}
@@ -846,67 +693,32 @@ function Index() {
                         setVideoOffsetY(Math.max(-100, Math.min(100, Math.round(startOffY + dy))));
                       }
                     };
-                    const up = () => {
-                      window.removeEventListener("pointermove", move);
-                      window.removeEventListener("pointerup", up);
-                    };
+                    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
                     window.addEventListener("pointermove", move);
                     window.addEventListener("pointerup", up);
                   }}
                   onWheel={(e) => {
                     e.preventDefault();
-                    if (bg.startsWith("hand_")) {
-                      setHandZoom((z) => Math.max(0.5, Math.min(2.5, +(z - e.deltaY * 0.002).toFixed(2))));
-                    } else {
-                      setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
-                    }
+                    if (bg.startsWith("hand_")) setHandZoom((z) => Math.max(0.5, Math.min(2.5, +(z - e.deltaY * 0.002).toFixed(2))));
+                    else setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
                   }}
                 />
               ) : (
-                <div className="text-white/40">Upload a video to preview the mockup</div>
+                <div className="text-white/40 text-sm">Upload a video to preview</div>
               )}
             </div>
 
-            <video
-              ref={videoRef}
-              src={videoUrl ?? undefined}
-              className="hidden"
-              playsInline
-              muted={!recording}
-              loop={!recording}
-              autoPlay
-            />
+            <video ref={videoRef} src={videoUrl ?? undefined} className="hidden" playsInline muted={!recording} loop={!recording} autoPlay />
+
 
             {result && (
-              <div className="mt-6 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs uppercase tracking-widest text-white/50">Your export — preview & download</div>
-                  <div className="text-xs text-white/40">
-                    {result.mime.includes("mp4") ? "MP4" : "WebM"} • {(result.size / 1024 / 1024).toFixed(2)} MB
-                  </div>
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-white/50">
+                  <span>Export ready</span>
+                  <span>{result.mime.includes("mp4") ? "MP4" : "WebM"} &bull; {(result.size / 1024 / 1024).toFixed(2)} MB</span>
                 </div>
-                <video
-                  key={result.url}
-                  src={result.url}
-                  controls
-                  loop
-                  playsInline
-                  preload="auto"
-                  onLoadedMetadata={(e) => {
-                    const el = e.currentTarget;
-                    try { el.currentTime = 0.001; } catch {}
-                  }}
-                  onLoadedData={(e) => {
-                    const el = e.currentTarget;
-                    try { el.currentTime = 0.001; } catch {}
-                  }}
-                  className="w-full rounded-xl border border-white/10 bg-black"
-                />
-                <a
-                  href={result.url}
-                  download={result.name}
-                  className="flex items-center justify-between rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90"
-                >
+                <video key={result.url} src={result.url} controls loop playsInline preload="auto" className="w-full rounded-lg border border-white/10 bg-black" />
+                <a href={result.url} download={result.name} className="flex items-center justify-between rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-white/90">
                   <span className="truncate">Download {result.name}</span>
                   <span className="ml-3 text-xs">↓</span>
                 </a>
@@ -919,26 +731,19 @@ function Index() {
   );
 }
 
+
 function seekVideo(video: HTMLVideoElement, time: number) {
   return new Promise<void>((resolve) => {
-    const done = () => {
-      video.removeEventListener("seeked", done);
-      resolve();
-    };
+    const done = () => { video.removeEventListener("seeked", done); resolve(); };
     video.addEventListener("seeked", done, { once: true });
     video.currentTime = time;
-    if (Math.abs(video.currentTime - time) < 0.02) {
-      requestAnimationFrame(done);
-    }
+    if (Math.abs(video.currentTime - time) < 0.02) requestAnimationFrame(done);
   });
 }
 
 function drawPhone(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
+  x: number, y: number, w: number, h: number,
   dev: DeviceSpec,
   video: HTMLVideoElement,
   videoFit: "cover" | "contain" | "fill",
@@ -951,7 +756,7 @@ function drawPhone(
 
   ctx.save();
 
-  // Soft drop shadow under phone
+  // Shadow
   ctx.save();
   roundRect(ctx, x, y, w, h, radius);
   ctx.shadowColor = "rgba(0,0,0,0.55)";
@@ -961,7 +766,8 @@ function drawPhone(
   ctx.fill();
   ctx.restore();
 
-  // Outer rail (metal frame) — slight gradient for realism
+
+  // Outer rail
   const railGrad = ctx.createLinearGradient(x, y, x + w, y);
   railGrad.addColorStop(0, shade(dev.rail, -25));
   railGrad.addColorStop(0.15, dev.rail);
@@ -972,7 +778,7 @@ function drawPhone(
   ctx.fillStyle = railGrad;
   ctx.fill();
 
-  // Inner body (slightly inset, darker)
+  // Inner body
   const bx = x + w * 0.012;
   const by = y + w * 0.012;
   const bw = w - w * 0.024;
@@ -982,7 +788,7 @@ function drawPhone(
   ctx.fillStyle = dev.body;
   ctx.fill();
 
-  // Subtle highlight on top edge
+  // Highlight
   ctx.save();
   roundRect(ctx, bx, by, bw, bh, br);
   ctx.clip();
@@ -993,16 +799,14 @@ function drawPhone(
   ctx.fillRect(bx, by, bw, bh * 0.25);
   ctx.restore();
 
-  // Side buttons (right: power; left: volume up/down)
+  // Buttons
   ctx.fillStyle = shade(dev.rail, -10);
-  // Power
   ctx.fillRect(x + w - w * 0.008, y + h * 0.18, w * 0.012, h * 0.06);
-  // Volume up
   ctx.fillRect(x - w * 0.004, y + h * 0.16, w * 0.012, h * 0.05);
-  // Volume down
   ctx.fillRect(x - w * 0.004, y + h * 0.235, w * 0.012, w * 0.06);
 
-  // Screen area
+
+  // Screen
   const sx = bx + bezel;
   const sy = by + bezel;
   const sw = bw - bezel * 2;
@@ -1014,67 +818,42 @@ function drawPhone(
   ctx.fillStyle = "#000";
   ctx.fillRect(sx, sy, sw, sh);
 
-  // Video inside the screen
   if (video.readyState >= 2) {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-
     let baseScale: number;
-    if (videoFit === "contain") {
-      baseScale = Math.min(sw / vw, sh / vh);
-    } else if (videoFit === "fill") {
-      baseScale = Math.max(sw / vw, sh / vh);
-    } else {
-      baseScale = Math.max(sw / vw, sh / vh);
-    }
-
+    if (videoFit === "contain") baseScale = Math.min(sw / vw, sh / vh);
+    else baseScale = Math.max(sw / vw, sh / vh);
     const s = baseScale * videoScale;
     const dw = vw * s;
     const dh = vh * s;
-
-    // Maximum offset so the video edge never goes past the screen edge
     const maxOffX = Math.max(0, (dw - sw) / 2);
     const maxOffY = Math.max(0, (dh - sh) / 2);
     const offX = (videoOffsetX / 100) * maxOffX;
     const offY = (videoOffsetY / 100) * maxOffY;
-
     const dx = sx + (sw - dw) / 2 + offX;
     const dy = sy + (sh - dh) / 2 + offY;
-
     ctx.drawImage(video, dx, dy, dw, dh);
   }
 
-  // Camera cutout, drawn inside the clipped screen
+  // Camera cutout
   ctx.fillStyle = "#000";
   if (dev.camera === "punch-center") {
     const r = sw * 0.022;
-    ctx.beginPath();
-    ctx.arc(sx + sw / 2, sy + r * 1.7, r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + sw / 2, sy + r * 1.7, r, 0, Math.PI * 2); ctx.fill();
   } else if (dev.camera === "punch-left") {
     const r = sw * 0.022;
-    ctx.beginPath();
-    ctx.arc(sx + sw * 0.12, sy + r * 1.7, r, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (dev.camera === "punch-corner") {
-    const r = sw * 0.024;
-    ctx.beginPath();
-    ctx.arc(sx + sw - r * 2.2, sy + r * 1.7, r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + sw * 0.12, sy + r * 1.7, r, 0, Math.PI * 2); ctx.fill();
   } else if (dev.camera === "notch-drop") {
     const r = sw * 0.028;
-    roundRect(ctx, sx + sw / 2 - r, sy, r * 2, r * 1.6, r);
-    ctx.fill();
+    roundRect(ctx, sx + sw / 2 - r, sy, r * 2, r * 1.6, r); ctx.fill();
   } else if (dev.camera === "notch-wide") {
-    const nw = sw * 0.34;
-    const nh = sh * 0.028;
-    roundRect(ctx, sx + (sw - nw) / 2, sy, nw, nh, nh * 0.6);
-    ctx.fill();
+    const nw = sw * 0.34; const nh = sh * 0.028;
+    roundRect(ctx, sx + (sw - nw) / 2, sy, nw, nh, nh * 0.6); ctx.fill();
   }
-
   ctx.restore();
 
-  // Glass reflection sheen across screen edge
+  // Glass sheen
   ctx.save();
   roundRect(ctx, sx, sy, sw, sh, sr);
   ctx.clip();
@@ -1088,6 +867,7 @@ function drawPhone(
   ctx.restore();
 }
 
+
 function shade(hex: string, percent: number) {
   const h = hex.replace("#", "");
   const num = parseInt(h, 16);
@@ -1096,7 +876,6 @@ function shade(hex: string, percent: number) {
   const b = Math.max(0, Math.min(255, (num & 0xff) + percent));
   return `rgb(${r},${g},${b})`;
 }
-
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
@@ -1112,12 +891,23 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
+// Counter-clockwise rounded rect (for evenodd clipping cutouts)
+function roundRectCCW(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.moveTo(x + r, y);
+  ctx.quadraticCurveTo(x, y, x, y + r);
+  ctx.lineTo(x, y + h - r);
+  ctx.quadraticCurveTo(x, y + h, x + r, y + h);
+  ctx.lineTo(x + w - r, y + h);
+  ctx.quadraticCurveTo(x + w, y + h, x + w, y + h - r);
+  ctx.lineTo(x + w, y + r);
+  ctx.quadraticCurveTo(x + w, y, x + w - r, y);
+  ctx.lineTo(x + r, y);
+  ctx.closePath();
+}
+
+
 function paintBackground(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  bg: BgId,
-  custom: string,
+  ctx: CanvasRenderingContext2D, w: number, h: number, bg: BgId, custom: string,
 ) {
   if (bg === "transparent") return;
   let fill: string | CanvasGradient = custom;
@@ -1125,19 +915,13 @@ function paintBackground(
   else if (bg === "black") fill = "#000000";
   else if (bg === "sunset") {
     const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#ff6a3d");
-    g.addColorStop(1, "#f9c846");
-    fill = g;
+    g.addColorStop(0, "#ff6a3d"); g.addColorStop(1, "#f9c846"); fill = g;
   } else if (bg === "ocean") {
     const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#0ea5e9");
-    g.addColorStop(1, "#1e3a8a");
-    fill = g;
+    g.addColorStop(0, "#0ea5e9"); g.addColorStop(1, "#1e3a8a"); fill = g;
   } else if (bg === "violet") {
     const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#7c3aed");
-    g.addColorStop(1, "#ec4899");
-    fill = g;
+    g.addColorStop(0, "#7c3aed"); g.addColorStop(1, "#ec4899"); fill = g;
   } else if (bg === "custom") {
     fill = custom;
   }
