@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import handHoldDeskImg from "@/assets/hand-hold-desk.jpg";
-import handHoldParkImg from "@/assets/hand-hold-park.jpg";
 import handHoldLivingImg from "@/assets/hand-hold-livingroom.jpg";
 
 // Hand image aspect ratio (actual image dimensions: 848x1264)
 const HAND_IMG_ASPECT = 848 / 1264;
 const HAND_BG_SRC: Record<string, string> = {
-  hand_park: handHoldParkImg,
   hand_living: handHoldLivingImg,
   hand_desk: handHoldDeskImg,
 };
@@ -15,7 +13,6 @@ const HAND_BG_SRC: Record<string, string> = {
 // naturally wrap around the edges from behind.
 const HAND_PHONE_RECT: Record<string, { cx: number; cy: number; w: number; h: number }> = {
   hand_desk:   { cx: 0.476, cy: 0.558, w: 0.383, h: 0.672 },
-  hand_park:   { cx: 0.563, cy: 0.437, w: 0.473, h: 0.538 },
   hand_living: { cx: 0.499, cy: 0.506, w: 0.600, h: 0.786 },
 };
 
@@ -57,7 +54,7 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_park" | "hand_living" | "hand_desk";
+type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_living" | "hand_desk";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
   { id: "white", label: "White", preview: "#ffffff" },
@@ -65,7 +62,6 @@ const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "sunset", label: "Sunset", preview: "linear-gradient(135deg,#ff6a3d,#f9c846)" },
   { id: "ocean", label: "Ocean", preview: "linear-gradient(135deg,#0ea5e9,#1e3a8a)" },
   { id: "violet", label: "Violet", preview: "linear-gradient(135deg,#7c3aed,#ec4899)" },
-  { id: "hand_park", label: "Hand hold — Park", preview: `url(${handHoldParkImg})` },
   { id: "hand_living", label: "Hand hold — Living room", preview: `url(${handHoldLivingImg})` },
   { id: "hand_desk", label: "Hand hold — Desk", preview: `url(${handHoldDeskImg})` },
   { id: "custom", label: "Custom color", preview: "custom" },
