@@ -2,25 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import handHoldDeskImg from "@/assets/hand-hold-desk.jpg";
 import handHoldParkImg from "@/assets/hand-hold-park.jpg";
 import handHoldLivingImg from "@/assets/hand-hold-livingroom.jpg";
-import handOnlyDeskImg from "@/assets/hand-only-desk.png";
-import handOnlyParkImg from "@/assets/hand-only-park.png";
-import handOnlyLivingImg from "@/assets/hand-only-livingroom.png";
 
-// Phone rect within each hand-hold reference photo (fractions of image w/h).
+// Hand image aspect ratio (actual image dimensions: 848x1264)
 const HAND_IMG_ASPECT = 848 / 1264;
 const HAND_BG_SRC: Record<string, string> = {
   hand_park: handHoldParkImg,
   hand_living: handHoldLivingImg,
   hand_desk: handHoldDeskImg,
 };
-// Hand-only transparent PNGs (arm, wrist, watch, fingers — no phone)
-const HAND_ONLY_SRC: Record<string, string> = {
-  hand_park: handOnlyParkImg,
-  hand_living: handOnlyLivingImg,
-  hand_desk: handOnlyDeskImg,
-};
-// Where the original phone was in each hand image (fractions of image w/h).
-// Used to position the app's device frame so fingers align naturally.
+// Where the phone screen is in each hand image (normalized 0-1 coordinates).
+// The device frame renders at this position so the photo's fingers
+// naturally wrap around the edges from behind.
 const HAND_PHONE_RECT: Record<string, { cx: number; cy: number; w: number; h: number }> = {
   hand_desk:   { cx: 0.476, cy: 0.558, w: 0.383, h: 0.672 },
   hand_park:   { cx: 0.563, cy: 0.437, w: 0.473, h: 0.538 },
@@ -142,7 +134,6 @@ function Index() {
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const handImgRefs = useRef<Record<string, HTMLImageElement>>({});
-  const handOnlyRefs = useRef<Record<string, HTMLImageElement>>({});
 
 
   useEffect(() => {
@@ -152,13 +143,6 @@ function Index() {
       img.crossOrigin = "anonymous";
       img.src = src;
       img.onload = () => { handImgRefs.current[key] = img; };
-    });
-    Object.entries(HAND_ONLY_SRC).forEach(([key, src]) => {
-      if (handOnlyRefs.current[key]) return;
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.src = src;
-      img.onload = () => { handOnlyRefs.current[key] = img; };
     });
   }, []);
 
@@ -221,7 +205,6 @@ function Index() {
       const handImgActive = bg.startsWith("hand_") ? handImgRefs.current[bg] : null;
       if (handImgActive) {
         const handImg = handImgActive;
-        const handOnlyImg = handOnlyRefs.current[bg];
 
         // Subtle multi-frequency handheld shake — baked into canvas for exports
         const t = performance.now() / 1000;
@@ -235,12 +218,14 @@ function Index() {
         ctx.rotate(sr);
         ctx.translate(-cw / 2, -ch / 2);
 
-        // === CLEAN LAYERED COMPOSITING ===
-        // Layer 1: Background (clean, no phone)
-        // Layer 2: Device frame (the app's phone with video inside)
-        // Layer 3: Hand-only PNG (arm, wrist, watch, fingers on top)
+        // === COMPOSITING: Full photo + device frame on top ===
+        // 1. Draw the full hand photo (hand, fingers, background scene)
+        // 2. Draw the device frame ON TOP at the phone's position
+        //    The fingers in the photo that wrap around the phone edges
+        //    remain visible from behind because they're part of the photo.
+        //    The device frame covers the phone screen area.
 
-        // --- Layer 1: Clean background ---
+        // --- Step 1: Draw the full hand photo (cover the canvas) ---
         const canvasAspect = cw / ch;
         let hw: number, hh: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
@@ -255,28 +240,22 @@ function Index() {
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
-        ctx.fillStyle = "#f5f0eb";
-        ctx.fillRect(0, 0, cw, ch);
+        ctx.drawImage(handImg, hx, hy, hw, hh);
 
-        // --- Layer 2: Device frame positioned at hand's grip point ---
-        // Place the device frame exactly where the original phone was in
-        // the hand image, so fingers naturally wrap around it.
+        // --- Step 2: Draw device frame at the phone's position ---
+        // The phone rect tells us where the phone screen is in the image.
+        // We place the device frame there so it aligns with the fingers.
         const phoneRect = HAND_PHONE_RECT[bg] || { cx: 0.5, cy: 0.5, w: 0.45, h: 0.7 };
 
-        // The device frame height is determined by the phone rect in the image
+        // Size the device frame to match the phone area in the photo
         const drawH = hh * phoneRect.h;
         const drawW = drawH * dev.aspect;
 
-        // Position: center of device frame aligns with where the phone was
+        // Center the device frame at the phone's center point
         const phoneX = hx + hw * phoneRect.cx - drawW / 2;
         const phoneY = hy + hh * phoneRect.cy - drawH / 2;
 
         drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
-
-        // --- Layer 3: Hand-only overlay (fingers grip the device) ---
-        if (handOnlyImg) {
-          ctx.drawImage(handOnlyImg, hx, hy, hw, hh);
-        }
 
         ctx.restore();
 
