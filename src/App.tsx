@@ -10,12 +10,40 @@ const HAND_BG_SRC: Record<string, string> = {
   hand_living: handHoldLivingImg,
   hand_desk: handHoldDeskImg,
 };
-// Screen rect inside the phone in each hand photo (where to paint video).
-// These are tuned to land exactly on the phone screen visible in each photo.
-const HAND_SCREEN_RECTS: Record<string, { x: number; y: number; w: number; h: number; r: number }> = {
-  hand_park:   { x: 0.295, y: 0.148, w: 0.424, h: 0.555, r: 0.025 },
-  hand_living: { x: 0.295, y: 0.148, w: 0.424, h: 0.555, r: 0.025 },
-  hand_desk:   { x: 0.270, y: 0.218, w: 0.426, h: 0.478, r: 0.022 },
+
+// Screen quadrilateral for each hand photo — 4 corners as fractions of image size.
+// Order: top-left, top-right, bottom-right, bottom-left.
+// This allows perspective-correct placement (tilted phone, camera angle).
+type ScreenQuad = {
+  tl: { x: number; y: number };
+  tr: { x: number; y: number };
+  br: { x: number; y: number };
+  bl: { x: number; y: number };
+  radius: number; // corner radius as fraction of quad width
+};
+
+const DEFAULT_HAND_SCREEN_QUADS: Record<string, ScreenQuad> = {
+  hand_park: {
+    tl: { x: 0.310, y: 0.175 },
+    tr: { x: 0.700, y: 0.160 },
+    br: { x: 0.710, y: 0.720 },
+    bl: { x: 0.300, y: 0.700 },
+    radius: 0.04,
+  },
+  hand_living: {
+    tl: { x: 0.300, y: 0.165 },
+    tr: { x: 0.695, y: 0.155 },
+    br: { x: 0.705, y: 0.710 },
+    bl: { x: 0.295, y: 0.695 },
+    radius: 0.04,
+  },
+  hand_desk: {
+    tl: { x: 0.285, y: 0.235 },
+    tr: { x: 0.690, y: 0.220 },
+    br: { x: 0.700, y: 0.700 },
+    bl: { x: 0.280, y: 0.685 },
+    radius: 0.035,
+  },
 };
 
 export default Index;
@@ -119,6 +147,30 @@ function Index() {
   const [handOffsetX, setHandOffsetX] = useState(0);
   const [handOffsetY, setHandOffsetY] = useState(0);
   const [handZoom, setHandZoom] = useState(1);
+  // Per-corner adjustments (offsets added to the default quad, as fractions)
+  const [quadAdjust, setQuadAdjust] = useState<Record<string, ScreenQuad>>({});
+  const getActiveQuad = (bgId: string): ScreenQuad => {
+    const base = DEFAULT_HAND_SCREEN_QUADS[bgId];
+    const adj = quadAdjust[bgId];
+    if (!base) return DEFAULT_HAND_SCREEN_QUADS.hand_park;
+    if (!adj) return base;
+    return {
+      tl: { x: base.tl.x + adj.tl.x, y: base.tl.y + adj.tl.y },
+      tr: { x: base.tr.x + adj.tr.x, y: base.tr.y + adj.tr.y },
+      br: { x: base.br.x + adj.br.x, y: base.br.y + adj.br.y },
+      bl: { x: base.bl.x + adj.bl.x, y: base.bl.y + adj.bl.y },
+      radius: base.radius + adj.radius,
+    };
+  };
+  const updateQuadCorner = (corner: "tl" | "tr" | "br" | "bl", axis: "x" | "y", val: number) => {
+    setQuadAdjust((prev) => {
+      const cur = prev[bg] ?? { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, br: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, radius: 0 };
+      return { ...prev, [bg]: { ...cur, [corner]: { ...cur[corner], [axis]: val } } };
+    });
+  };
+  const resetQuadAdjust = () => {
+    setQuadAdjust((prev) => { const next = { ...prev }; delete next[bg]; return next; });
+  };
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ url: string; name: string; size: number; mime: string } | null>(null);
@@ -234,49 +286,59 @@ function Index() {
         ctx.rotate(sr);
         ctx.translate(-cw / 2, -ch / 2);
 
-        // --- HAND MODE: paint video INTO the photo's screen, then overlay the hand photo ---
-        // Step 1: Compute the screen rect position in canvas coords
-        const rect = HAND_SCREEN_RECTS[bg] ?? { x: 0.295, y: 0.148, w: 0.424, h: 0.555, r: 0.025 };
-        const scrX = hx + rect.x * hw;
-        const scrY = hy + rect.y * hh;
-        const scrW = rect.w * hw;
-        const scrH = rect.h * hh;
-        const scrR = rect.r * hw;
+        // --- PERSPECTIVE QUAD APPROACH ---
+        // Get the 4-corner quad for this background
+        const quad = getActiveQuad(bg);
+        // Convert fractional coords to canvas pixel coords
+        const tl = { x: hx + quad.tl.x * hw, y: hy + quad.tl.y * hh };
+        const tr = { x: hx + quad.tr.x * hw, y: hy + quad.tr.y * hh };
+        const br = { x: hx + quad.br.x * hw, y: hy + quad.br.y * hh };
+        const bl = { x: hx + quad.bl.x * hw, y: hy + quad.bl.y * hh };
 
-        // Step 2: Draw video content into the screen area (clipped to rounded rect)
+        // Compute bounding box of the quad for radius
+        const qMinX = Math.min(tl.x, tr.x, br.x, bl.x);
+        const qMaxX = Math.max(tl.x, tr.x, br.x, bl.x);
+        const qMinY = Math.min(tl.y, tr.y, br.y, bl.y);
+        const qMaxY = Math.max(tl.y, tr.y, br.y, bl.y);
+        const qW = qMaxX - qMinX;
+        const qH = qMaxY - qMinY;
+        const qR = quad.radius * qW;
+
+        // Step 1: Draw video warped into the quadrilateral
         ctx.save();
-        roundRect(ctx, scrX, scrY, scrW, scrH, scrR);
+        clipQuadRounded(ctx, tl, tr, br, bl, qR);
         ctx.clip();
         ctx.fillStyle = "#000";
-        ctx.fillRect(scrX, scrY, scrW, scrH);
+        ctx.fillRect(qMinX, qMinY, qW, qH);
         if (video.readyState >= 2) {
-          const vw = video.videoWidth;
-          const vh = video.videoHeight;
-          let baseScale: number;
-          if (videoFit === "contain") baseScale = Math.min(scrW / vw, scrH / vh);
-          else baseScale = Math.max(scrW / vw, scrH / vh);
-          const s = baseScale * videoScale;
-          const dw = vw * s;
-          const dh = vh * s;
-          const maxOffX = Math.max(0, (dw - scrW) / 2);
-          const maxOffY = Math.max(0, (dh - scrH) / 2);
-          const offX = (videoOffsetX / 100) * maxOffX;
-          const offY = (videoOffsetY / 100) * maxOffY;
-          const dx = scrX + (scrW - dw) / 2 + offX;
-          const dy = scrY + (scrH - dh) / 2 + offY;
-          ctx.drawImage(video, dx, dy, dw, dh);
+          drawVideoInQuad(ctx, video, tl, tr, br, bl, videoFit, videoScale, videoOffsetX, videoOffsetY);
         }
         ctx.restore();
 
-        // Step 3: Draw hand image on top with the screen area cut out.
-        // This lets the video show through the screen hole while the hand
-        // (including fingers) naturally overlaps the phone edges.
+        // Step 2: Draw hand image on top with the quad area cut out
         ctx.save();
         ctx.beginPath();
         ctx.rect(0, 0, cw, ch);
-        roundRectCCW(ctx, scrX, scrY, scrW, scrH, scrR);
+        clipQuadRoundedCCW(ctx, tl, tr, br, bl, qR);
         ctx.clip("evenodd");
         ctx.drawImage(handImg, hx, hy, hw, hh);
+        ctx.restore();
+
+        // Step 3: Subtle screen bezel shadow + glass reflection
+        ctx.save();
+        clipQuadRounded(ctx, tl, tr, br, bl, qR);
+        ctx.clip();
+        const shadowGrad = ctx.createLinearGradient(qMinX, qMinY, qMinX, qMinY + qH * 0.06);
+        shadowGrad.addColorStop(0, "rgba(0,0,0,0.25)");
+        shadowGrad.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = shadowGrad;
+        ctx.fillRect(qMinX, qMinY, qW, qH);
+        const glassGrad = ctx.createLinearGradient(qMinX, qMinY, qMinX + qW * 0.6, qMinY + qH * 0.4);
+        glassGrad.addColorStop(0, "rgba(255,255,255,0.05)");
+        glassGrad.addColorStop(0.3, "rgba(255,255,255,0.01)");
+        glassGrad.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = glassGrad;
+        ctx.fillRect(qMinX, qMinY, qW, qH);
         ctx.restore();
 
         ctx.restore();
@@ -298,7 +360,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY, handOffsetX, handOffsetY, handZoom]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY, handOffsetX, handOffsetY, handZoom, quadAdjust]);
 
 
   const exportVideo = async () => {
@@ -562,6 +624,37 @@ function Index() {
                   <label className="text-[10px] text-white/40">Zoom: {handZoom.toFixed(2)}x</label>
                   <input type="range" min={0.5} max={2.5} step={0.01} value={handZoom} onChange={(e) => setHandZoom(Number(e.target.value))} className="w-full accent-white h-1" />
                 </div>
+              </div>
+            </Section>
+            )}
+
+            {/* Screen Placement — fine-tune quad corners for hand mode */}
+            {bg.startsWith("hand_") && (
+            <Section title="Screen placement">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-white/50">Pin corners to match phone</span>
+                  <button type="button" className="text-[10px] text-white/50 hover:text-white" onClick={resetQuadAdjust}>Reset</button>
+                </div>
+                {(["tl", "tr", "br", "bl"] as const).map((corner) => {
+                  const labels = { tl: "Top-Left", tr: "Top-Right", br: "Bottom-Right", bl: "Bottom-Left" };
+                  const adj = quadAdjust[bg] ?? { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, br: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, radius: 0 };
+                  return (
+                    <div key={corner} className="rounded-md bg-white/[0.03] px-2 py-1.5">
+                      <span className="text-[10px] text-white/60 font-medium">{labels[corner]}</span>
+                      <div className="flex gap-2 mt-0.5">
+                        <div className="flex-1">
+                          <label className="text-[9px] text-white/30">X: {(adj[corner].x * 100).toFixed(1)}%</label>
+                          <input type="range" min={-0.15} max={0.15} step={0.002} value={adj[corner].x} onChange={(e) => updateQuadCorner(corner, "x", Number(e.target.value))} className="w-full accent-white h-0.5" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[9px] text-white/30">Y: {(adj[corner].y * 100).toFixed(1)}%</label>
+                          <input type="range" min={-0.15} max={0.15} step={0.002} value={adj[corner].y} onChange={(e) => updateQuadCorner(corner, "y", Number(e.target.value))} className="w-full accent-white h-0.5" />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </Section>
             )}
@@ -898,6 +991,189 @@ function roundRectCCW(ctx: CanvasRenderingContext2D, x: number, y: number, w: nu
   ctx.quadraticCurveTo(x + w, y, x + w - r, y);
   ctx.lineTo(x + r, y);
   ctx.closePath();
+}
+
+
+// --- Quad clipping helpers for perspective phone screen ---
+type Pt = { x: number; y: number };
+
+function lerpPt(a: Pt, b: Pt, t: number): Pt {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+// Build a clockwise path for a quadrilateral with rounded corners
+function clipQuadRounded(ctx: CanvasRenderingContext2D, tl: Pt, tr: Pt, br: Pt, bl: Pt, r: number) {
+  ctx.beginPath();
+  const sides = [
+    { from: tl, to: tr },
+    { from: tr, to: br },
+    { from: br, to: bl },
+    { from: bl, to: tl },
+  ];
+  const len = (a: Pt, b: Pt) => Math.hypot(b.x - a.x, b.y - a.y);
+  for (let i = 0; i < 4; i++) {
+    const prev = sides[(i + 3) % 4];
+    const cur = sides[i];
+    const prevLen = len(prev.from, prev.to);
+    const curLen = len(cur.from, cur.to);
+    const rr = Math.min(r, prevLen * 0.4, curLen * 0.4);
+    const t1 = rr / prevLen;
+    const t2 = rr / curLen;
+    const p1 = lerpPt(prev.to, prev.from, t1);
+    const p2 = lerpPt(cur.from, cur.to, t2);
+    if (i === 0) ctx.moveTo(p1.x, p1.y);
+    else ctx.lineTo(p1.x, p1.y);
+    ctx.quadraticCurveTo(cur.from.x, cur.from.y, p2.x, p2.y);
+  }
+  ctx.closePath();
+}
+
+// Build a counter-clockwise path for a quadrilateral with rounded corners (for evenodd cutout)
+function clipQuadRoundedCCW(ctx: CanvasRenderingContext2D, tl: Pt, tr: Pt, br: Pt, bl: Pt, r: number) {
+  // Reverse order: tl -> bl -> br -> tr
+  const sides = [
+    { from: tl, to: bl },
+    { from: bl, to: br },
+    { from: br, to: tr },
+    { from: tr, to: tl },
+  ];
+  const len = (a: Pt, b: Pt) => Math.hypot(b.x - a.x, b.y - a.y);
+  for (let i = 0; i < 4; i++) {
+    const prev = sides[(i + 3) % 4];
+    const cur = sides[i];
+    const prevLen = len(prev.from, prev.to);
+    const curLen = len(cur.from, cur.to);
+    const rr = Math.min(r, prevLen * 0.4, curLen * 0.4);
+    const t1 = rr / prevLen;
+    const t2 = rr / curLen;
+    const p1 = lerpPt(prev.to, prev.from, t1);
+    const p2 = lerpPt(cur.from, cur.to, t2);
+    if (i === 0) ctx.moveTo(p1.x, p1.y);
+    else ctx.lineTo(p1.x, p1.y);
+    ctx.quadraticCurveTo(cur.from.x, cur.from.y, p2.x, p2.y);
+  }
+  ctx.closePath();
+}
+
+// Draw video content perspective-warped into a quadrilateral using a subdivided mesh.
+// This approximates a projective transform using many small affine triangles.
+function drawVideoInQuad(
+  ctx: CanvasRenderingContext2D,
+  video: HTMLVideoElement,
+  tl: Pt, tr: Pt, br: Pt, bl: Pt,
+  videoFit: "cover" | "contain" | "fill",
+  videoScale: number,
+  videoOffsetX: number,
+  videoOffsetY: number,
+) {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+
+  // Calculate the quad's approximate width/height for aspect ratio
+  const topW = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+  const botW = Math.hypot(br.x - bl.x, br.y - bl.y);
+  const leftH = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+  const rightH = Math.hypot(br.x - tr.x, br.y - tr.y);
+  const avgW = (topW + botW) / 2;
+  const avgH = (leftH + rightH) / 2;
+
+  let baseScale: number;
+  if (videoFit === "contain") baseScale = Math.min(avgW / vw, avgH / vh);
+  else if (videoFit === "fill") baseScale = 1;
+  else baseScale = Math.max(avgW / vw, avgH / vh);
+  const s = baseScale * videoScale;
+  const dw = vw * s;
+  const dh = vh * s;
+
+  // Offsets for panning
+  const maxOffX = Math.max(0, (dw - avgW) / 2);
+  const maxOffY = Math.max(0, (dh - avgH) / 2);
+  const offX = (videoOffsetX / 100) * maxOffX;
+  const offY = (videoOffsetY / 100) * maxOffY;
+
+  // Map UV [0,1]x[0,1] to video pixel coordinates.
+  // UV (0,0) = top-left of visible quad area.
+  // The video is centered in the quad with possible overflow (cover mode).
+  // srcPixel = (u * avgW - (dw-avgW)/2 - offX) / s  (and similarly for v/y)
+  const baseOffX = ((dw - avgW) / 2 + offX) / s; // video px offset for u=0
+  const baseOffY = ((dh - avgH) / 2 + offY) / s; // video px offset for v=0
+  const stepX = avgW / s; // video px range for u=0..1
+  const stepY = avgH / s; // video px range for v=0..1
+
+  // Subdivide the quad into a grid and draw each cell as two textured triangles
+  const SUBDIV = 8;
+  for (let row = 0; row < SUBDIV; row++) {
+    for (let col = 0; col < SUBDIV; col++) {
+      const u0 = col / SUBDIV;
+      const v0 = row / SUBDIV;
+      const u1 = (col + 1) / SUBDIV;
+      const v1 = (row + 1) / SUBDIV;
+
+      // Canvas positions via bilinear interpolation of quad corners
+      const p00 = bilinear(tl, tr, br, bl, u0, v0);
+      const p10 = bilinear(tl, tr, br, bl, u1, v0);
+      const p01 = bilinear(tl, tr, br, bl, u0, v1);
+      const p11 = bilinear(tl, tr, br, bl, u1, v1);
+
+      // Video source pixel coords
+      const srcX0 = u0 * stepX - baseOffX;
+      const srcY0 = v0 * stepY - baseOffY;
+      const srcX1 = u1 * stepX - baseOffX;
+      const srcY1 = v1 * stepY - baseOffY;
+
+      // Draw two triangles for this grid cell
+      drawTexturedTriangle(ctx, video,
+        p00, p10, p11,
+        srcX0, srcY0, srcX1, srcY0, srcX1, srcY1
+      );
+      drawTexturedTriangle(ctx, video,
+        p00, p11, p01,
+        srcX0, srcY0, srcX1, srcY1, srcX0, srcY1
+      );
+    }
+  }
+}
+
+// Bilinear interpolation on a quad
+function bilinear(tl: Pt, tr: Pt, br: Pt, bl: Pt, u: number, v: number): Pt {
+  const top = lerpPt(tl, tr, u);
+  const bot = lerpPt(bl, br, u);
+  return lerpPt(top, bot, v);
+}
+
+// Draw a textured triangle using affine transform
+function drawTexturedTriangle(
+  ctx: CanvasRenderingContext2D,
+  img: CanvasImageSource,
+  p0: Pt, p1: Pt, p2: Pt,
+  sx0: number, sy0: number,
+  sx1: number, sy1: number,
+  sx2: number, sy2: number,
+) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(p0.x, p0.y);
+  ctx.lineTo(p1.x, p1.y);
+  ctx.lineTo(p2.x, p2.y);
+  ctx.closePath();
+  ctx.clip();
+
+  // Solve affine transform that maps source triangle to destination triangle
+  // dest = M * src where src has homogeneous coords
+  const denom = (sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1));
+  if (Math.abs(denom) < 0.001) { ctx.restore(); return; }
+
+  const m11 = (p0.x * (sy1 - sy2) + p1.x * (sy2 - sy0) + p2.x * (sy0 - sy1)) / denom;
+  const m12 = (p0.x * (sx2 - sx1) + p1.x * (sx0 - sx2) + p2.x * (sx1 - sx0)) / denom;
+  const m13 = (p0.x * (sx1 * sy2 - sx2 * sy1) + p1.x * (sx2 * sy0 - sx0 * sy2) + p2.x * (sx0 * sy1 - sx1 * sy0)) / denom;
+  const m21 = (p0.y * (sy1 - sy2) + p1.y * (sy2 - sy0) + p2.y * (sy0 - sy1)) / denom;
+  const m22 = (p0.y * (sx2 - sx1) + p1.y * (sx0 - sx2) + p2.y * (sx1 - sx0)) / denom;
+  const m23 = (p0.y * (sx1 * sy2 - sx2 * sy1) + p1.y * (sx2 * sy0 - sx0 * sy2) + p2.y * (sx0 * sy1 - sx1 * sy0)) / denom;
+
+  ctx.setTransform(m11, m21, m12, m22, m13, m23);
+  // Draw the full image - the clip region will limit what's visible
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
 }
 
 
