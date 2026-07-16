@@ -229,14 +229,13 @@ function Index() {
         ctx.translate(-cw / 2, -ch / 2);
 
         // === CLEAN LAYERED COMPOSITING ===
-        // Layer 1: Background (the scene from the original photo)
+        // Layer 1: Background (clean, no phone)
         // Layer 2: Device frame (the app's phone with video inside)
         // Layer 3: Hand-only PNG (arm, wrist, watch, fingers on top)
 
-        // --- Layer 1: Background scene ---
-        // Draw the original photo as a heavily blurred background.
-        // The blur eliminates the visible phone outline from the source
-        // while preserving the ambient scene colors and lighting.
+        // --- Layer 1: Clean background ---
+        // Do NOT draw the original photo (it contains a phone).
+        // Use a soft neutral fill that complements the scene.
         const canvasAspect = cw / ch;
         let hw: number, hh: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
@@ -251,11 +250,8 @@ function Index() {
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
-        ctx.save();
-        ctx.filter = `blur(${Math.round(cw * 0.02)}px)`;
-        ctx.drawImage(handImg, hx, hy, hw, hh);
-        ctx.filter = "none";
-        ctx.restore();
+        ctx.fillStyle = "#f5f0eb";
+        ctx.fillRect(0, 0, cw, ch);
 
         // --- Layer 2: Device frame with video ---
         const phoneFit = Math.min(cw / phoneW, ch / phoneH) * scale * 0.75;
