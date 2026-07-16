@@ -210,26 +210,16 @@ function Index() {
         ctx.rotate(sr);
         ctx.translate(-cw / 2, -ch / 2);
 
-        // --- Realistic hand image wrapping the phone ---
-        // The hand images already show a real hand gripping a phone.
-        // We position the hand image so the phone frame sits exactly
-        // where the hand's grip area is, creating a natural hold.
+        // --- Hand image already contains the phone being held ---
+        // We draw the hand image as the full scene, then composite the
+        // user's video/image INTO the phone screen that already exists
+        // in the photograph. No second phone frame is drawn.
 
-        // Step 1: Fill background with a soft neutral tone
+        // Step 1: Fill background
         ctx.fillStyle = "#f5f0eb";
         ctx.fillRect(0, 0, cw, ch);
 
-        // Step 2: Calculate phone position (centered, sized to fit nicely)
-        const phoneFit = Math.min(cw / phoneW, ch / phoneH) * scale * 0.75;
-        const drawW = phoneW * phoneFit;
-        const drawH = phoneH * phoneFit;
-        const phoneX = (cw - drawW) / 2;
-        const phoneY = (ch - drawH) / 2;
-
-        // Step 3: Position the hand image so the grip area aligns with the phone.
-        // The hand images show a hand holding a phone from the right side
-        // (wrist at bottom-right, fingers wrapping from the right).
-        // We scale and position so the hand's grip zone matches the phone location.
+        // Step 2: Compute hand image placement (cover the canvas)
         const canvasAspect = cw / ch;
         let hw: number, hh: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
@@ -239,53 +229,56 @@ function Index() {
           hh = ch;
           hw = ch * HAND_IMG_ASPECT;
         }
-        // Apply user zoom and offset for fine-tuning
         hw *= handZoom;
         hh *= handZoom;
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
-        // Step 4: Draw the BACK portion of the hand (palm, wrist, arm)
-        // This goes BEHIND the phone so the phone appears held.
+        // Step 3: Draw the complete hand image (includes the real phone)
         ctx.drawImage(handImg, hx, hy, hw, hh);
 
-        // Step 5: Draw the phone frame with video on top of the palm/arm
-        drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+        // Step 4: Determine the phone screen rect within the hand image.
+        // The hand photos show a phone held with the screen facing the camera.
+        // The screen area is approximately centered in the image at these
+        // fractional positions (relative to the hand image dimensions).
+        // These values are calibrated to the existing hand-hold photos.
+        const screenLeft = 0.27;   // fraction from left edge of image
+        const screenTop = 0.12;    // fraction from top edge of image
+        const screenRight = 0.73;  // fraction from left edge of image
+        const screenBottom = 0.72; // fraction from top edge of image
+        const screenRadius = hw * 0.025; // corner radius of the screen
 
-        // Step 6: Re-draw the finger portions of the hand image ON TOP of the phone.
-        // We clip to only the areas where fingers would wrap over the phone edges.
-        // This creates the illusion of fingers gripping in front of the device.
-        ctx.save();
+        // Convert to canvas coordinates
+        const scrX = hx + hw * screenLeft;
+        const scrY = hy + hh * screenTop;
+        const scrW = hw * (screenRight - screenLeft);
+        const scrH = hh * (screenBottom - screenTop);
 
-        // Create a clipping region for the finger overlap areas:
-        // - Right edge: fingers curling over from behind (the 4 fingers)
-        // - Left edge: thumb resting on the bezel
-        // - Bottom: palm heel visible below the phone
-        ctx.beginPath();
+        // Step 5: Clip and draw the user's video/image INTO the existing
+        // phone screen. This fills edge-to-edge within the screen bounds.
+        if (video.readyState >= 2) {
+          ctx.save();
+          roundRect(ctx, scrX, scrY, scrW, scrH, screenRadius);
+          ctx.clip();
 
-        // Right-side fingers overlap zone (fingers wrap ~12% onto the front face)
-        const fingerOverlapW = drawW * 0.14;
-        const fingerZoneTop = phoneY + drawH * 0.10;
-        const fingerZoneBot = phoneY + drawH * 0.85;
-        ctx.rect(phoneX + drawW - fingerOverlapW, fingerZoneTop, fingerOverlapW + drawW * 0.15, fingerZoneBot - fingerZoneTop);
+          const vw = video.videoWidth;
+          const vh = video.videoHeight;
+          let baseScale: number;
+          if (videoFit === "contain") baseScale = Math.min(scrW / vw, scrH / vh);
+          else baseScale = Math.max(scrW / vw, scrH / vh);
+          const s = baseScale * videoScale;
+          const dw = vw * s;
+          const dh = vh * s;
+          const maxOffX = Math.max(0, (dw - scrW) / 2);
+          const maxOffY = Math.max(0, (dh - scrH) / 2);
+          const offX = (videoOffsetX / 100) * maxOffX;
+          const offY = (videoOffsetY / 100) * maxOffY;
+          const dx = scrX + (scrW - dw) / 2 + offX;
+          const dy = scrY + (scrH - dh) / 2 + offY;
+          ctx.drawImage(video, dx, dy, dw, dh);
 
-        // Left-side thumb overlap zone (thumb wraps ~8% onto front bezel)
-        const thumbOverlapW = drawW * 0.10;
-        const thumbZoneTop = phoneY + drawH * 0.25;
-        const thumbZoneBot = phoneY + drawH * 0.90;
-        ctx.rect(phoneX - drawW * 0.08, thumbZoneTop, thumbOverlapW + drawW * 0.08, thumbZoneBot - thumbZoneTop);
-
-        // Bottom area below phone (wrist/palm visible)
-        ctx.rect(0, phoneY + drawH * 0.92, cw, ch - (phoneY + drawH * 0.92));
-
-        // Top area above phone (potential fingertips)
-        ctx.rect(phoneX + drawW * 0.7, 0, cw - (phoneX + drawW * 0.7), phoneY + drawH * 0.15);
-
-        ctx.clip();
-
-        // Re-draw the hand image in the clipped finger zones
-        ctx.drawImage(handImg, hx, hy, hw, hh);
-        ctx.restore();
+          ctx.restore();
+        }
 
         ctx.restore();
 
