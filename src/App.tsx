@@ -211,11 +211,9 @@ function Index() {
         ctx.translate(-cw / 2, -ch / 2);
 
         // --- Compositing: real hand + app device frame ---
-        // The hand photos show a real hand with a watch. We use the hand/arm
-        // portion of the image as background, then draw the app's proper
-        // device frame (with bezels, rail, camera cutout) positioned where
-        // the hand grips. Finally, we re-draw the hand's finger areas on
-        // top so the fingers appear to wrap around the rendered phone.
+        // Strategy: Draw the hand image, then PAINT OVER the photo's phone
+        // area completely, then draw the app's device frame on top.
+        // Finally, re-draw ONLY the finger edges on top of the device.
 
         // Step 1: Fill background
         ctx.fillStyle = "#f5f0eb";
@@ -236,80 +234,58 @@ function Index() {
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
-        // Step 3: Draw the hand image BEHIND the phone, but EXCLUDE the
-        // area where the photo's own phone is visible. This prevents the
-        // double-phone effect. We clip out the device frame zone so only
-        // the hand/arm/background from the photo is drawn.
-        // Step 4: Calculate where to place the app's device frame.
-        // Position it centered where the hand grips in the photo.
+        // Step 3: Calculate device frame position
         const phoneFit = Math.min(cw / phoneW, ch / phoneH) * scale * 0.75;
         const drawW = phoneW * phoneFit;
         const drawH = phoneH * phoneFit;
         const phoneX = (cw - drawW) / 2;
         const phoneY = (ch - drawH) / 2;
 
-        // Draw the hand image with the phone area cut out.
-        // Use "destination-out" compositing approach: draw everything
-        // EXCEPT the rectangle where our device frame will go.
-        ctx.save();
-        ctx.beginPath();
-        // Full canvas rect (outer boundary)
-        ctx.rect(0, 0, cw, ch);
-        // Cut out the phone area using counter-clockwise winding (hole)
-        const radius = drawW * dev.radiusRatio;
-        // Draw the phone shape as a hole (counter-clockwise)
-        const px = phoneX, py = phoneY, pw = drawW, ph = drawH, pr = radius;
-        ctx.moveTo(px + pr, py);
-        ctx.lineTo(px + pw - pr, py);
-        ctx.quadraticCurveTo(px + pw, py, px + pw, py + pr);
-        ctx.lineTo(px + pw, py + ph - pr);
-        ctx.quadraticCurveTo(px + pw, py + ph, px + pw - pr, py + ph);
-        ctx.lineTo(px + pr, py + ph);
-        ctx.quadraticCurveTo(px, py + ph, px, py + ph - pr);
-        ctx.lineTo(px, py + pr);
-        ctx.quadraticCurveTo(px, py, px + pr, py);
-        ctx.closePath();
-        ctx.clip("evenodd");
+        // Step 4: Draw the full hand image
         ctx.drawImage(handImg, hx, hy, hw, hh);
+
+        // Step 5: COVER the photo's phone screen area completely.
+        // The photo's phone occupies a region in the center of the image.
+        // We paint over it with the background scene (sampled from the
+        // edges of the image) using a solid fill that matches the 
+        // surrounding scene. This erases the photo's phone entirely.
+        // We use a slightly oversized rectangle to ensure full coverage.
+        const coverPad = drawW * 0.08; // extra padding to cover photo phone edges
+        const coverX = phoneX - coverPad;
+        const coverY = phoneY - coverPad;
+        const coverW = drawW + coverPad * 2;
+        const coverH = drawH + coverPad * 2;
+        const coverR = drawW * dev.radiusRatio + coverPad;
+
+        // Sample the average background color from the hand image edges
+        // and use it to paint over the phone area seamlessly.
+        // For simplicity, use the neutral background fill.
+        ctx.save();
+        roundRect(ctx, coverX, coverY, coverW, coverH, coverR);
+        ctx.clip();
+        // Re-fill with background color to erase the photo's phone
+        ctx.fillStyle = "#f5f0eb";
+        ctx.fillRect(coverX, coverY, coverW, coverH);
         ctx.restore();
 
-        // Step 5: Draw the app's proper device frame (with bezels, rail,
+        // Step 6: Draw the app's proper device frame (with bezels, rail,
         // camera cutout, buttons, glass sheen) with the video inside.
-        // This is the ONLY phone rendered — not a duplicate.
         drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
 
-        // Step 6: Re-draw the hand image ON TOP of the phone in finger zones.
-        // This makes the real fingers from the photo appear to grip the
-        // rendered device frame naturally.
+        // Step 7: Re-draw the hand's fingers ON TOP of the device frame.
+        // ONLY draw in narrow strips along the edges where real fingers
+        // would overlap. Do NOT re-expose the photo's phone screen.
         ctx.save();
         ctx.beginPath();
 
-        // Thumb zone — left edge of the phone (viewer's perspective)
-        // The thumb from the photo wraps over the left bezel.
-        const thumbX = phoneX - drawW * 0.05;
-        const thumbY = phoneY + drawH * 0.45;
-        const thumbW = drawW * 0.13;
-        const thumbH = drawH * 0.50;
-        ctx.rect(thumbX, thumbY, thumbW, thumbH);
+        // Thumb — narrow strip along the left bezel only
+        ctx.rect(phoneX - drawW * 0.04, phoneY + drawH * 0.50, drawW * 0.08, drawH * 0.45);
 
-        // Four fingers — right edge of the phone
-        // The fingers curl over from behind.
-        const fingersX = phoneX + drawW * 0.90;
-        const fingersY = phoneY + drawH * 0.15;
-        const fingersW = drawW * 0.18;
-        const fingersH = drawH * 0.70;
-        ctx.rect(fingersX, fingersY, fingersW, fingersH);
+        // Fingers — narrow strip along the right edge only
+        ctx.rect(phoneX + drawW * 0.96, phoneY + drawH * 0.18, drawW * 0.12, drawH * 0.65);
 
-        // Bottom palm/wrist area below the phone
-        ctx.rect(phoneX - drawW * 0.2, phoneY + drawH * 0.88, drawW * 1.4, ch - (phoneY + drawH * 0.88));
-
-        // Area outside the phone entirely (hand/arm visible around)
-        // Left side
-        ctx.rect(0, 0, phoneX - drawW * 0.02, ch);
-        // Right side
-        ctx.rect(phoneX + drawW + drawW * 0.02, 0, cw - (phoneX + drawW + drawW * 0.02), ch);
-        // Top
-        ctx.rect(0, 0, cw, phoneY - drawH * 0.02);
+        // Bottom palm/wrist below the phone
+        ctx.rect(phoneX - drawW * 0.15, phoneY + drawH * 0.94, drawW * 1.3, ch - (phoneY + drawH * 0.94));
 
         ctx.clip();
         ctx.drawImage(handImg, hx, hy, hw, hh);
