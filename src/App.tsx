@@ -152,7 +152,7 @@ function Index() {
     setVideoUrl(url);
   };
 
-  // Probe metadata
+  // Probe metadata and ensure preview video starts playing
   useEffect(() => {
     if (!videoUrl) return;
     const v = document.createElement("video");
@@ -161,6 +161,16 @@ function Index() {
     v.onloadedmetadata = () => {
       setVideoMeta({ w: v.videoWidth, h: v.videoHeight, d: v.duration });
     };
+    // Also ensure the ref video element starts playing once source is set
+    const refVideo = videoRef.current;
+    if (refVideo) {
+      refVideo.src = videoUrl;
+      refVideo.muted = true;
+      refVideo.loop = true;
+      refVideo.playsInline = true;
+      refVideo.load();
+      refVideo.play().catch(() => {});
+    }
   }, [videoUrl]);
 
 
@@ -708,7 +718,7 @@ function Index() {
               )}
             </div>
 
-            <video ref={videoRef} src={videoUrl ?? undefined} className="hidden" playsInline muted={!recording} loop={!recording} autoPlay />
+            <video ref={videoRef} className="hidden" playsInline muted loop autoPlay />
 
 
             {result && (
