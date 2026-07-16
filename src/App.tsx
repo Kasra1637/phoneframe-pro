@@ -210,10 +210,12 @@ function Index() {
         ctx.rotate(sr);
         ctx.translate(-cw / 2, -ch / 2);
 
-        // --- Hand image already contains the phone being held ---
-        // We draw the hand image as the full scene, then composite the
-        // user's video/image INTO the phone screen that already exists
-        // in the photograph. No second phone frame is drawn.
+        // --- Compositing: real hand + app device frame ---
+        // The hand photos show a real hand with a watch. We use the hand/arm
+        // portion of the image as background, then draw the app's proper
+        // device frame (with bezels, rail, camera cutout) positioned where
+        // the hand grips. Finally, we re-draw the hand's finger areas on
+        // top so the fingers appear to wrap around the rendered phone.
 
         // Step 1: Fill background
         ctx.fillStyle = "#f5f0eb";
@@ -234,51 +236,59 @@ function Index() {
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
-        // Step 3: Draw the complete hand image (includes the real phone)
+        // Step 3: Draw the hand image BEHIND the phone.
+        // We draw the full image first — the phone frame will be drawn on top.
         ctx.drawImage(handImg, hx, hy, hw, hh);
 
-        // Step 4: Determine the phone screen rect within the hand image.
-        // The hand photos show a phone held with the screen facing the camera.
-        // The screen area is approximately centered in the image at these
-        // fractional positions (relative to the hand image dimensions).
-        // These values are calibrated to the existing hand-hold photos.
-        const screenLeft = 0.27;   // fraction from left edge of image
-        const screenTop = 0.12;    // fraction from top edge of image
-        const screenRight = 0.73;  // fraction from left edge of image
-        const screenBottom = 0.72; // fraction from top edge of image
-        const screenRadius = hw * 0.025; // corner radius of the screen
+        // Step 4: Calculate where to place the app's device frame.
+        // Position it centered where the hand grips in the photo.
+        const phoneFit = Math.min(cw / phoneW, ch / phoneH) * scale * 0.75;
+        const drawW = phoneW * phoneFit;
+        const drawH = phoneH * phoneFit;
+        const phoneX = (cw - drawW) / 2;
+        const phoneY = (ch - drawH) / 2;
 
-        // Convert to canvas coordinates
-        const scrX = hx + hw * screenLeft;
-        const scrY = hy + hh * screenTop;
-        const scrW = hw * (screenRight - screenLeft);
-        const scrH = hh * (screenBottom - screenTop);
+        // Step 5: Draw the app's proper device frame (with bezels, rail,
+        // camera cutout, buttons, glass sheen) with the video inside.
+        // This is the ONLY phone rendered — not a duplicate.
+        drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
 
-        // Step 5: Clip and draw the user's video/image INTO the existing
-        // phone screen. This fills edge-to-edge within the screen bounds.
-        if (video.readyState >= 2) {
-          ctx.save();
-          roundRect(ctx, scrX, scrY, scrW, scrH, screenRadius);
-          ctx.clip();
+        // Step 6: Re-draw the hand image ON TOP of the phone in finger zones.
+        // This makes the real fingers from the photo appear to grip the
+        // rendered device frame naturally.
+        ctx.save();
+        ctx.beginPath();
 
-          const vw = video.videoWidth;
-          const vh = video.videoHeight;
-          let baseScale: number;
-          if (videoFit === "contain") baseScale = Math.min(scrW / vw, scrH / vh);
-          else baseScale = Math.max(scrW / vw, scrH / vh);
-          const s = baseScale * videoScale;
-          const dw = vw * s;
-          const dh = vh * s;
-          const maxOffX = Math.max(0, (dw - scrW) / 2);
-          const maxOffY = Math.max(0, (dh - scrH) / 2);
-          const offX = (videoOffsetX / 100) * maxOffX;
-          const offY = (videoOffsetY / 100) * maxOffY;
-          const dx = scrX + (scrW - dw) / 2 + offX;
-          const dy = scrY + (scrH - dh) / 2 + offY;
-          ctx.drawImage(video, dx, dy, dw, dh);
+        // Thumb zone — left edge of the phone (viewer's perspective)
+        // The thumb from the photo wraps over the left bezel.
+        const thumbX = phoneX - drawW * 0.05;
+        const thumbY = phoneY + drawH * 0.45;
+        const thumbW = drawW * 0.13;
+        const thumbH = drawH * 0.50;
+        ctx.rect(thumbX, thumbY, thumbW, thumbH);
 
-          ctx.restore();
-        }
+        // Four fingers — right edge of the phone
+        // The fingers curl over from behind.
+        const fingersX = phoneX + drawW * 0.90;
+        const fingersY = phoneY + drawH * 0.15;
+        const fingersW = drawW * 0.18;
+        const fingersH = drawH * 0.70;
+        ctx.rect(fingersX, fingersY, fingersW, fingersH);
+
+        // Bottom palm/wrist area below the phone
+        ctx.rect(phoneX - drawW * 0.2, phoneY + drawH * 0.88, drawW * 1.4, ch - (phoneY + drawH * 0.88));
+
+        // Area outside the phone entirely (hand/arm visible around)
+        // Left side
+        ctx.rect(0, 0, phoneX - drawW * 0.02, ch);
+        // Right side
+        ctx.rect(phoneX + drawW + drawW * 0.02, 0, cw - (phoneX + drawW + drawW * 0.02), ch);
+        // Top
+        ctx.rect(0, 0, cw, phoneY - drawH * 0.02);
+
+        ctx.clip();
+        ctx.drawImage(handImg, hx, hy, hw, hh);
+        ctx.restore();
 
         ctx.restore();
 
