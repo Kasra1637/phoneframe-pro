@@ -11,41 +11,6 @@ const HAND_BG_SRC: Record<string, string> = {
   hand_desk: handHoldDeskImg,
 };
 
-// Screen quadrilateral for each hand photo — 4 corners as fractions of image size.
-// Order: top-left, top-right, bottom-right, bottom-left.
-// This allows perspective-correct placement (tilted phone, camera angle).
-type ScreenQuad = {
-  tl: { x: number; y: number };
-  tr: { x: number; y: number };
-  br: { x: number; y: number };
-  bl: { x: number; y: number };
-  radius: number; // corner radius as fraction of quad width
-};
-
-const DEFAULT_HAND_SCREEN_QUADS: Record<string, ScreenQuad> = {
-  hand_park: {
-    tl: { x: 0.310, y: 0.175 },
-    tr: { x: 0.700, y: 0.160 },
-    br: { x: 0.710, y: 0.720 },
-    bl: { x: 0.300, y: 0.700 },
-    radius: 0.04,
-  },
-  hand_living: {
-    tl: { x: 0.300, y: 0.165 },
-    tr: { x: 0.695, y: 0.155 },
-    br: { x: 0.705, y: 0.710 },
-    bl: { x: 0.295, y: 0.695 },
-    radius: 0.04,
-  },
-  hand_desk: {
-    tl: { x: 0.285, y: 0.235 },
-    tr: { x: 0.690, y: 0.220 },
-    br: { x: 0.700, y: 0.700 },
-    bl: { x: 0.280, y: 0.685 },
-    radius: 0.035,
-  },
-};
-
 export default Index;
 
 
@@ -147,30 +112,6 @@ function Index() {
   const [handOffsetX, setHandOffsetX] = useState(0);
   const [handOffsetY, setHandOffsetY] = useState(0);
   const [handZoom, setHandZoom] = useState(1);
-  // Per-corner adjustments (offsets added to the default quad, as fractions)
-  const [quadAdjust, setQuadAdjust] = useState<Record<string, ScreenQuad>>({});
-  const getActiveQuad = (bgId: string): ScreenQuad => {
-    const base = DEFAULT_HAND_SCREEN_QUADS[bgId];
-    const adj = quadAdjust[bgId];
-    if (!base) return DEFAULT_HAND_SCREEN_QUADS.hand_park;
-    if (!adj) return base;
-    return {
-      tl: { x: base.tl.x + adj.tl.x, y: base.tl.y + adj.tl.y },
-      tr: { x: base.tr.x + adj.tr.x, y: base.tr.y + adj.tr.y },
-      br: { x: base.br.x + adj.br.x, y: base.br.y + adj.br.y },
-      bl: { x: base.bl.x + adj.bl.x, y: base.bl.y + adj.bl.y },
-      radius: base.radius + adj.radius,
-    };
-  };
-  const updateQuadCorner = (corner: "tl" | "tr" | "br" | "bl", axis: "x" | "y", val: number) => {
-    setQuadAdjust((prev) => {
-      const cur = prev[bg] ?? { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, br: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, radius: 0 };
-      return { ...prev, [bg]: { ...cur, [corner]: { ...cur[corner], [axis]: val } } };
-    });
-  };
-  const resetQuadAdjust = () => {
-    setQuadAdjust((prev) => { const next = { ...prev }; delete next[bg]; return next; });
-  };
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ url: string; name: string; size: number; mime: string } | null>(null);
@@ -256,9 +197,33 @@ function Index() {
       const handImgActive = bg.startsWith("hand_") ? handImgRefs.current[bg] : null;
       if (handImgActive) {
         const handImg = handImgActive;
-        ctx.fillStyle = "#ffffff";
+
+        // Subtle handheld shake
+        const t = performance.now() / 1000;
+        const shakeAmt = Math.min(cw, ch) * 0.003;
+        const sx = Math.sin(t * 2.1) * shakeAmt + Math.sin(t * 5.7) * shakeAmt * 0.3;
+        const sy = Math.cos(t * 1.7) * shakeAmt + Math.cos(t * 6.3) * shakeAmt * 0.3;
+        const sr = Math.sin(t * 1.1) * 0.003;
+
+        ctx.save();
+        ctx.translate(cw / 2 + sx, ch / 2 + sy);
+        ctx.rotate(sr);
+        ctx.translate(-cw / 2, -ch / 2);
+
+        // --- NEW APPROACH: Background + Device Frame + Finger Overlays ---
+
+        // Step 1: Fill background with a soft neutral tone
+        ctx.fillStyle = "#f5f0eb";
         ctx.fillRect(0, 0, cw, ch);
 
+        // Step 2: Calculate phone position (centered, sized to fit nicely)
+        const phoneFit = Math.min(cw / phoneW, ch / phoneH) * scale * 0.75;
+        const drawW = phoneW * phoneFit;
+        const drawH = phoneH * phoneFit;
+        const phoneX = (cw - drawW) / 2 + handOffsetX * cw * 0.3;
+        const phoneY = (ch - drawH) / 2 + handOffsetY * ch * 0.3;
+
+        // Step 3: Draw the hand/arm image behind the phone
         const canvasAspect = cw / ch;
         let hw: number, hh: number;
         if (canvasAspect > HAND_IMG_ASPECT) {
@@ -272,77 +237,15 @@ function Index() {
         hh *= handZoom;
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
-
-
-        // Subtle handheld shake
-        const t = performance.now() / 1000;
-        const shakeAmt = Math.min(cw, ch) * 0.004;
-        const sx = Math.sin(t * 2.1) * shakeAmt + Math.sin(t * 5.7) * shakeAmt * 0.4;
-        const sy = Math.cos(t * 1.7) * shakeAmt + Math.cos(t * 6.3) * shakeAmt * 0.4;
-        const sr = Math.sin(t * 1.1) * 0.004;
-
-        ctx.save();
-        ctx.translate(cw / 2 + sx, ch / 2 + sy);
-        ctx.rotate(sr);
-        ctx.translate(-cw / 2, -ch / 2);
-
-        // --- PERSPECTIVE QUAD APPROACH ---
-        // Get the 4-corner quad for this background
-        const quad = getActiveQuad(bg);
-        // Convert fractional coords to canvas pixel coords
-        const tl = { x: hx + quad.tl.x * hw, y: hy + quad.tl.y * hh };
-        const tr = { x: hx + quad.tr.x * hw, y: hy + quad.tr.y * hh };
-        const br = { x: hx + quad.br.x * hw, y: hy + quad.br.y * hh };
-        const bl = { x: hx + quad.bl.x * hw, y: hy + quad.bl.y * hh };
-
-        // Compute bounding box of the quad for radius
-        const qMinX = Math.min(tl.x, tr.x, br.x, bl.x);
-        const qMaxX = Math.max(tl.x, tr.x, br.x, bl.x);
-        const qMinY = Math.min(tl.y, tr.y, br.y, bl.y);
-        const qMaxY = Math.max(tl.y, tr.y, br.y, bl.y);
-        const qW = qMaxX - qMinX;
-        const qH = qMaxY - qMinY;
-        const qR = quad.radius * qW;
-
-        // Step 1: Draw video warped into the quadrilateral
-        ctx.save();
-        clipQuadRounded(ctx, tl, tr, br, bl, qR);
-        ctx.clip();
-        ctx.fillStyle = "#000";
-        ctx.fillRect(qMinX, qMinY, qW, qH);
-        if (video.readyState >= 2) {
-          drawVideoInQuad(ctx, video, tl, tr, br, bl, videoFit, videoScale, videoOffsetX, videoOffsetY);
-        }
-        ctx.restore();
-
-        // Step 2: Draw hand image on top with the quad area cut out
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, 0, cw, ch);
-        clipQuadRoundedCCW(ctx, tl, tr, br, bl, qR);
-        ctx.clip("evenodd");
         ctx.drawImage(handImg, hx, hy, hw, hh);
-        ctx.restore();
 
-        // Step 3: Subtle screen bezel shadow + glass reflection
-        ctx.save();
-        clipQuadRounded(ctx, tl, tr, br, bl, qR);
-        ctx.clip();
-        const shadowGrad = ctx.createLinearGradient(qMinX, qMinY, qMinX, qMinY + qH * 0.06);
-        shadowGrad.addColorStop(0, "rgba(0,0,0,0.25)");
-        shadowGrad.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = shadowGrad;
-        ctx.fillRect(qMinX, qMinY, qW, qH);
-        const glassGrad = ctx.createLinearGradient(qMinX, qMinY, qMinX + qW * 0.6, qMinY + qH * 0.4);
-        glassGrad.addColorStop(0, "rgba(255,255,255,0.05)");
-        glassGrad.addColorStop(0.3, "rgba(255,255,255,0.01)");
-        glassGrad.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.fillStyle = glassGrad;
-        ctx.fillRect(qMinX, qMinY, qW, qH);
-        ctx.restore();
+        // Step 4: Draw the actual device frame with video (same as non-hand mode)
+        drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+
+        // Step 5: Draw realistic fingers wrapping around the phone
+        drawFingers(ctx, phoneX, phoneY, drawW, drawH, dev);
 
         ctx.restore();
-
 
       } else {
         paintBackground(ctx, cw, ch, bg, customColor);
@@ -360,7 +263,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY, handOffsetX, handOffsetY, handZoom, quadAdjust]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY, handOffsetX, handOffsetY, handZoom]);
 
 
   const exportVideo = async () => {
@@ -628,53 +531,18 @@ function Index() {
             </Section>
             )}
 
-            {/* Screen Placement — fine-tune quad corners for hand mode */}
-            {bg.startsWith("hand_") && (
-            <Section title="Screen placement">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-white/50">Pin corners to match phone</span>
-                  <button type="button" className="text-[10px] text-white/50 hover:text-white" onClick={resetQuadAdjust}>Reset</button>
-                </div>
-                {(["tl", "tr", "br", "bl"] as const).map((corner) => {
-                  const labels = { tl: "Top-Left", tr: "Top-Right", br: "Bottom-Right", bl: "Bottom-Left" };
-                  const adj = quadAdjust[bg] ?? { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, br: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, radius: 0 };
-                  return (
-                    <div key={corner} className="rounded-md bg-white/[0.03] px-2 py-1.5">
-                      <span className="text-[10px] text-white/60 font-medium">{labels[corner]}</span>
-                      <div className="flex gap-2 mt-0.5">
-                        <div className="flex-1">
-                          <label className="text-[9px] text-white/30">X: {(adj[corner].x * 100).toFixed(1)}%</label>
-                          <input type="range" min={-0.15} max={0.15} step={0.002} value={adj[corner].x} onChange={(e) => updateQuadCorner(corner, "x", Number(e.target.value))} className="w-full accent-white h-0.5" />
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-[9px] text-white/30">Y: {(adj[corner].y * 100).toFixed(1)}%</label>
-                          <input type="range" min={-0.15} max={0.15} step={0.002} value={adj[corner].y} onChange={(e) => updateQuadCorner(corner, "y", Number(e.target.value))} className="w-full accent-white h-0.5" />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Section>
-            )}
-
-            {/* Phone Size (hidden in hand mode since the photo determines it) */}
-            {!bg.startsWith("hand_") && (
+            {/* Phone Size */}
             <Section title={`Phone size (${Math.round(scale * 100)}%)`}>
               <input type="range" min={0.3} max={1} step={0.01} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="w-full accent-white" />
             </Section>
-            )}
 
             {/* Mockup Height */}
-            {!bg.startsWith("hand_") && (
             <Section title={`Mockup height (${Math.round(mockupStretchY * 100)}%)`}>
               <div className="flex items-center gap-2">
                 <input type="range" min={0.5} max={2} step={0.01} value={mockupStretchY} onChange={(e) => setMockupStretchY(Number(e.target.value))} className="flex-1 accent-white" />
                 <button type="button" onClick={() => setMockupStretchY(1)} className="text-[10px] text-white/50 hover:text-white">Reset</button>
               </div>
             </Section>
-            )}
 
 
             {/* Video Crop */}
@@ -956,6 +824,240 @@ function drawPhone(
 }
 
 
+// Draw realistic fingers wrapping around the phone edges
+function drawFingers(
+  ctx: CanvasRenderingContext2D,
+  phoneX: number, phoneY: number,
+  phoneW: number, phoneH: number,
+  _dev: DeviceSpec,
+) {
+  // Skin tone colors (natural gradient)
+  const skinBase = "rgba(198, 160, 130, 0.95)";
+  const skinShadow = "rgba(145, 105, 78, 0.9)";
+  const skinHighlight = "rgba(225, 195, 170, 0.85)";
+  const nailColor = "rgba(235, 210, 195, 0.9)";
+  const knuckleCrease = "rgba(130, 90, 65, 0.4)";
+
+  // Finger dimensions relative to phone size
+  const fingerWidth = phoneW * 0.09;
+  const fingerTipRadius = fingerWidth * 0.48;
+
+  // --- RIGHT HAND: 4 fingers wrapping from the right side ---
+  // Fingers are spaced along the right edge, curving inward onto the face
+  const rightFingers = [
+    { yFrac: 0.28, wrapInward: 0.18, length: 1.0 },   // Index finger (top)
+    { yFrac: 0.40, wrapInward: 0.22, length: 1.05 },   // Middle finger
+    { yFrac: 0.52, wrapInward: 0.20, length: 1.0 },   // Ring finger
+    { yFrac: 0.64, wrapInward: 0.15, length: 0.90 },  // Pinky (shorter)
+  ];
+
+  for (let i = 0; i < rightFingers.length; i++) {
+    const finger = rightFingers[i];
+    const fy = phoneY + phoneH * finger.yFrac;
+    const fLen = fingerWidth * finger.length * 3.2;
+    const wrapX = phoneW * finger.wrapInward;
+
+    ctx.save();
+
+    // The finger comes from the right side, wraps over the right edge
+    // Main finger body
+    const fingerStartX = phoneX + phoneW + fingerWidth * 0.3; // starts slightly beyond phone edge
+    const fingerEndX = phoneX + phoneW - wrapX; // wraps inward this much
+
+    // Draw finger body with gradient
+    ctx.beginPath();
+    // Top edge of finger
+    const topY = fy - fingerWidth * 0.45;
+    const botY = fy + fingerWidth * 0.45;
+
+    // Curved finger shape wrapping around the edge
+    ctx.moveTo(fingerStartX + fingerWidth, topY + fingerWidth * 0.1);
+    // Right side (behind phone, partially visible)
+    ctx.lineTo(fingerStartX, topY);
+    // Curve over the phone edge
+    ctx.quadraticCurveTo(
+      phoneX + phoneW + fingerWidth * 0.05, topY - fingerWidth * 0.05,
+      phoneX + phoneW - wrapX * 0.3, topY + fingerWidth * 0.05
+    );
+    // Fingertip (the part visible on phone face)
+    ctx.quadraticCurveTo(
+      fingerEndX - fingerTipRadius * 0.5, topY + fingerWidth * 0.1,
+      fingerEndX, fy
+    );
+    // Bottom curve of fingertip
+    ctx.quadraticCurveTo(
+      fingerEndX - fingerTipRadius * 0.5, botY - fingerWidth * 0.1,
+      phoneX + phoneW - wrapX * 0.3, botY - fingerWidth * 0.05
+    );
+    // Curve back over edge
+    ctx.quadraticCurveTo(
+      phoneX + phoneW + fingerWidth * 0.05, botY + fingerWidth * 0.05,
+      fingerStartX, botY
+    );
+    ctx.lineTo(fingerStartX + fingerWidth, botY - fingerWidth * 0.1);
+    ctx.closePath();
+
+    // Gradient fill for 3D appearance
+    const fingerGrad = ctx.createLinearGradient(fingerEndX, topY, fingerStartX, botY);
+    fingerGrad.addColorStop(0, skinHighlight);
+    fingerGrad.addColorStop(0.3, skinBase);
+    fingerGrad.addColorStop(0.7, skinBase);
+    fingerGrad.addColorStop(1, skinShadow);
+    ctx.fillStyle = fingerGrad;
+    ctx.fill();
+
+    // Top shadow edge (gives roundness)
+    ctx.beginPath();
+    ctx.moveTo(fingerStartX, topY);
+    ctx.quadraticCurveTo(
+      phoneX + phoneW + fingerWidth * 0.05, topY - fingerWidth * 0.05,
+      phoneX + phoneW - wrapX * 0.3, topY + fingerWidth * 0.05
+    );
+    ctx.quadraticCurveTo(
+      fingerEndX - fingerTipRadius * 0.5, topY + fingerWidth * 0.1,
+      fingerEndX, fy
+    );
+    ctx.strokeStyle = knuckleCrease;
+    ctx.lineWidth = fingerWidth * 0.04;
+    ctx.stroke();
+
+    // Nail on the fingertip (small oval)
+    const nailW = fingerWidth * 0.45;
+    const nailH = fingerWidth * 0.55;
+    const nailX = fingerEndX + nailW * 0.5;
+    const nailY = fy;
+    ctx.beginPath();
+    ctx.ellipse(nailX, nailY, nailW * 0.4, nailH * 0.4, 0, 0, Math.PI * 2);
+    ctx.fillStyle = nailColor;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(180, 145, 120, 0.5)";
+    ctx.lineWidth = fingerWidth * 0.02;
+    ctx.stroke();
+
+    // Knuckle crease lines
+    const creaseX = phoneX + phoneW + fingerWidth * 0.05;
+    ctx.beginPath();
+    ctx.moveTo(creaseX, fy - fingerWidth * 0.25);
+    ctx.quadraticCurveTo(creaseX + fingerWidth * 0.02, fy, creaseX, fy + fingerWidth * 0.25);
+    ctx.strokeStyle = knuckleCrease;
+    ctx.lineWidth = fingerWidth * 0.03;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // --- THUMB on the left side (lower portion) ---
+  ctx.save();
+  const thumbY = phoneY + phoneH * 0.72;
+  const thumbWidth = fingerWidth * 1.6;
+  const thumbWrapInward = phoneW * 0.25;
+  const thumbEndX = phoneX + thumbWrapInward;
+  const thumbStartX = phoneX - thumbWidth * 0.8;
+
+  // Thumb body
+  ctx.beginPath();
+  const tTopY = thumbY - thumbWidth * 0.5;
+  const tBotY = thumbY + thumbWidth * 0.5;
+
+  ctx.moveTo(thumbStartX - thumbWidth, tTopY + thumbWidth * 0.2);
+  ctx.lineTo(thumbStartX, tTopY);
+  ctx.quadraticCurveTo(
+    phoneX - thumbWidth * 0.1, tTopY - thumbWidth * 0.08,
+    phoneX + thumbWrapInward * 0.4, tTopY + thumbWidth * 0.08
+  );
+  // Thumb tip
+  ctx.quadraticCurveTo(
+    thumbEndX + thumbWidth * 0.2, tTopY + thumbWidth * 0.15,
+    thumbEndX, thumbY
+  );
+  ctx.quadraticCurveTo(
+    thumbEndX + thumbWidth * 0.2, tBotY - thumbWidth * 0.15,
+    phoneX + thumbWrapInward * 0.4, tBotY - thumbWidth * 0.08
+  );
+  ctx.quadraticCurveTo(
+    phoneX - thumbWidth * 0.1, tBotY + thumbWidth * 0.08,
+    thumbStartX, tBotY
+  );
+  ctx.lineTo(thumbStartX - thumbWidth, tBotY - thumbWidth * 0.2);
+  ctx.closePath();
+
+  const thumbGrad = ctx.createLinearGradient(thumbEndX, tTopY, thumbStartX, tBotY);
+  thumbGrad.addColorStop(0, skinHighlight);
+  thumbGrad.addColorStop(0.35, skinBase);
+  thumbGrad.addColorStop(0.7, skinBase);
+  thumbGrad.addColorStop(1, skinShadow);
+  ctx.fillStyle = thumbGrad;
+  ctx.fill();
+
+  // Thumb nail
+  const tNailX = thumbEndX + thumbWidth * 0.15;
+  const tNailY = thumbY;
+  ctx.beginPath();
+  ctx.ellipse(tNailX, tNailY, thumbWidth * 0.22, thumbWidth * 0.28, 0, 0, Math.PI * 2);
+  ctx.fillStyle = nailColor;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(180, 145, 120, 0.5)";
+  ctx.lineWidth = thumbWidth * 0.02;
+  ctx.stroke();
+
+  // Thumb knuckle crease
+  const tCreaseX = phoneX - thumbWidth * 0.05;
+  ctx.beginPath();
+  ctx.moveTo(tCreaseX, thumbY - thumbWidth * 0.3);
+  ctx.quadraticCurveTo(tCreaseX - thumbWidth * 0.03, thumbY, tCreaseX, thumbY + thumbWidth * 0.3);
+  ctx.strokeStyle = knuckleCrease;
+  ctx.lineWidth = thumbWidth * 0.035;
+  ctx.stroke();
+
+  ctx.restore();
+
+  // --- Palm shadow behind the phone (subtle depth) ---
+  ctx.save();
+  ctx.globalAlpha = 0.15;
+  ctx.beginPath();
+  // Shadow below and to the right of the phone
+  ctx.ellipse(
+    phoneX + phoneW * 0.5,
+    phoneY + phoneH + phoneH * 0.03,
+    phoneW * 0.45,
+    phoneH * 0.04,
+    0, 0, Math.PI * 2
+  );
+  ctx.fillStyle = "#000";
+  ctx.fill();
+  ctx.restore();
+
+  // --- Contact shadows where fingers meet phone edge ---
+  ctx.save();
+  ctx.globalAlpha = 0.2;
+  for (const finger of rightFingers) {
+    const fy = phoneY + phoneH * finger.yFrac;
+    ctx.beginPath();
+    ctx.ellipse(
+      phoneX + phoneW - 1,
+      fy,
+      fingerWidth * 0.15,
+      fingerWidth * 0.5,
+      0, 0, Math.PI * 2
+    );
+    ctx.fillStyle = "#000";
+    ctx.fill();
+  }
+  // Thumb contact shadow
+  ctx.beginPath();
+  ctx.ellipse(
+    phoneX + 1,
+    thumbY,
+    thumbWidth * 0.15,
+    thumbWidth * 0.5,
+    0, 0, Math.PI * 2
+  );
+  ctx.fillStyle = "#000";
+  ctx.fill();
+  ctx.restore();
+}
+
+
 function shade(hex: string, percent: number) {
   const h = hex.replace("#", "");
   const num = parseInt(h, 16);
@@ -977,203 +1079,6 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.lineTo(x, y + r);
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
-}
-
-// Counter-clockwise rounded rect (for evenodd clipping cutouts)
-function roundRectCCW(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.moveTo(x + r, y);
-  ctx.quadraticCurveTo(x, y, x, y + r);
-  ctx.lineTo(x, y + h - r);
-  ctx.quadraticCurveTo(x, y + h, x + r, y + h);
-  ctx.lineTo(x + w - r, y + h);
-  ctx.quadraticCurveTo(x + w, y + h, x + w, y + h - r);
-  ctx.lineTo(x + w, y + r);
-  ctx.quadraticCurveTo(x + w, y, x + w - r, y);
-  ctx.lineTo(x + r, y);
-  ctx.closePath();
-}
-
-
-// --- Quad clipping helpers for perspective phone screen ---
-type Pt = { x: number; y: number };
-
-function lerpPt(a: Pt, b: Pt, t: number): Pt {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-}
-
-// Build a clockwise path for a quadrilateral with rounded corners
-function clipQuadRounded(ctx: CanvasRenderingContext2D, tl: Pt, tr: Pt, br: Pt, bl: Pt, r: number) {
-  ctx.beginPath();
-  const sides = [
-    { from: tl, to: tr },
-    { from: tr, to: br },
-    { from: br, to: bl },
-    { from: bl, to: tl },
-  ];
-  const len = (a: Pt, b: Pt) => Math.hypot(b.x - a.x, b.y - a.y);
-  for (let i = 0; i < 4; i++) {
-    const prev = sides[(i + 3) % 4];
-    const cur = sides[i];
-    const prevLen = len(prev.from, prev.to);
-    const curLen = len(cur.from, cur.to);
-    const rr = Math.min(r, prevLen * 0.4, curLen * 0.4);
-    const t1 = rr / prevLen;
-    const t2 = rr / curLen;
-    const p1 = lerpPt(prev.to, prev.from, t1);
-    const p2 = lerpPt(cur.from, cur.to, t2);
-    if (i === 0) ctx.moveTo(p1.x, p1.y);
-    else ctx.lineTo(p1.x, p1.y);
-    ctx.quadraticCurveTo(cur.from.x, cur.from.y, p2.x, p2.y);
-  }
-  ctx.closePath();
-}
-
-// Build a counter-clockwise path for a quadrilateral with rounded corners (for evenodd cutout)
-function clipQuadRoundedCCW(ctx: CanvasRenderingContext2D, tl: Pt, tr: Pt, br: Pt, bl: Pt, r: number) {
-  // Reverse order: tl -> bl -> br -> tr
-  const sides = [
-    { from: tl, to: bl },
-    { from: bl, to: br },
-    { from: br, to: tr },
-    { from: tr, to: tl },
-  ];
-  const len = (a: Pt, b: Pt) => Math.hypot(b.x - a.x, b.y - a.y);
-  for (let i = 0; i < 4; i++) {
-    const prev = sides[(i + 3) % 4];
-    const cur = sides[i];
-    const prevLen = len(prev.from, prev.to);
-    const curLen = len(cur.from, cur.to);
-    const rr = Math.min(r, prevLen * 0.4, curLen * 0.4);
-    const t1 = rr / prevLen;
-    const t2 = rr / curLen;
-    const p1 = lerpPt(prev.to, prev.from, t1);
-    const p2 = lerpPt(cur.from, cur.to, t2);
-    if (i === 0) ctx.moveTo(p1.x, p1.y);
-    else ctx.lineTo(p1.x, p1.y);
-    ctx.quadraticCurveTo(cur.from.x, cur.from.y, p2.x, p2.y);
-  }
-  ctx.closePath();
-}
-
-// Draw video content perspective-warped into a quadrilateral using a subdivided mesh.
-// This approximates a projective transform using many small affine triangles.
-function drawVideoInQuad(
-  ctx: CanvasRenderingContext2D,
-  video: HTMLVideoElement,
-  tl: Pt, tr: Pt, br: Pt, bl: Pt,
-  videoFit: "cover" | "contain" | "fill",
-  videoScale: number,
-  videoOffsetX: number,
-  videoOffsetY: number,
-) {
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
-
-  // Calculate the quad's approximate width/height for aspect ratio
-  const topW = Math.hypot(tr.x - tl.x, tr.y - tl.y);
-  const botW = Math.hypot(br.x - bl.x, br.y - bl.y);
-  const leftH = Math.hypot(bl.x - tl.x, bl.y - tl.y);
-  const rightH = Math.hypot(br.x - tr.x, br.y - tr.y);
-  const avgW = (topW + botW) / 2;
-  const avgH = (leftH + rightH) / 2;
-
-  let baseScale: number;
-  if (videoFit === "contain") baseScale = Math.min(avgW / vw, avgH / vh);
-  else if (videoFit === "fill") baseScale = 1;
-  else baseScale = Math.max(avgW / vw, avgH / vh);
-  const s = baseScale * videoScale;
-  const dw = vw * s;
-  const dh = vh * s;
-
-  // Offsets for panning
-  const maxOffX = Math.max(0, (dw - avgW) / 2);
-  const maxOffY = Math.max(0, (dh - avgH) / 2);
-  const offX = (videoOffsetX / 100) * maxOffX;
-  const offY = (videoOffsetY / 100) * maxOffY;
-
-  // Map UV [0,1]x[0,1] to video pixel coordinates.
-  // UV (0,0) = top-left of visible quad area.
-  // The video is centered in the quad with possible overflow (cover mode).
-  // srcPixel = (u * avgW - (dw-avgW)/2 - offX) / s  (and similarly for v/y)
-  const baseOffX = ((dw - avgW) / 2 + offX) / s; // video px offset for u=0
-  const baseOffY = ((dh - avgH) / 2 + offY) / s; // video px offset for v=0
-  const stepX = avgW / s; // video px range for u=0..1
-  const stepY = avgH / s; // video px range for v=0..1
-
-  // Subdivide the quad into a grid and draw each cell as two textured triangles
-  const SUBDIV = 8;
-  for (let row = 0; row < SUBDIV; row++) {
-    for (let col = 0; col < SUBDIV; col++) {
-      const u0 = col / SUBDIV;
-      const v0 = row / SUBDIV;
-      const u1 = (col + 1) / SUBDIV;
-      const v1 = (row + 1) / SUBDIV;
-
-      // Canvas positions via bilinear interpolation of quad corners
-      const p00 = bilinear(tl, tr, br, bl, u0, v0);
-      const p10 = bilinear(tl, tr, br, bl, u1, v0);
-      const p01 = bilinear(tl, tr, br, bl, u0, v1);
-      const p11 = bilinear(tl, tr, br, bl, u1, v1);
-
-      // Video source pixel coords
-      const srcX0 = u0 * stepX - baseOffX;
-      const srcY0 = v0 * stepY - baseOffY;
-      const srcX1 = u1 * stepX - baseOffX;
-      const srcY1 = v1 * stepY - baseOffY;
-
-      // Draw two triangles for this grid cell
-      drawTexturedTriangle(ctx, video,
-        p00, p10, p11,
-        srcX0, srcY0, srcX1, srcY0, srcX1, srcY1
-      );
-      drawTexturedTriangle(ctx, video,
-        p00, p11, p01,
-        srcX0, srcY0, srcX1, srcY1, srcX0, srcY1
-      );
-    }
-  }
-}
-
-// Bilinear interpolation on a quad
-function bilinear(tl: Pt, tr: Pt, br: Pt, bl: Pt, u: number, v: number): Pt {
-  const top = lerpPt(tl, tr, u);
-  const bot = lerpPt(bl, br, u);
-  return lerpPt(top, bot, v);
-}
-
-// Draw a textured triangle using affine transform
-function drawTexturedTriangle(
-  ctx: CanvasRenderingContext2D,
-  img: CanvasImageSource,
-  p0: Pt, p1: Pt, p2: Pt,
-  sx0: number, sy0: number,
-  sx1: number, sy1: number,
-  sx2: number, sy2: number,
-) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(p0.x, p0.y);
-  ctx.lineTo(p1.x, p1.y);
-  ctx.lineTo(p2.x, p2.y);
-  ctx.closePath();
-  ctx.clip();
-
-  // Solve affine transform that maps source triangle to destination triangle
-  // dest = M * src where src has homogeneous coords
-  const denom = (sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1));
-  if (Math.abs(denom) < 0.001) { ctx.restore(); return; }
-
-  const m11 = (p0.x * (sy1 - sy2) + p1.x * (sy2 - sy0) + p2.x * (sy0 - sy1)) / denom;
-  const m12 = (p0.x * (sx2 - sx1) + p1.x * (sx0 - sx2) + p2.x * (sx1 - sx0)) / denom;
-  const m13 = (p0.x * (sx1 * sy2 - sx2 * sy1) + p1.x * (sx2 * sy0 - sx0 * sy2) + p2.x * (sx0 * sy1 - sx1 * sy0)) / denom;
-  const m21 = (p0.y * (sy1 - sy2) + p1.y * (sy2 - sy0) + p2.y * (sy0 - sy1)) / denom;
-  const m22 = (p0.y * (sx2 - sx1) + p1.y * (sx0 - sx2) + p2.y * (sx1 - sx0)) / denom;
-  const m23 = (p0.y * (sx1 * sy2 - sx2 * sy1) + p1.y * (sx2 * sy0 - sx0 * sy2) + p2.y * (sx0 * sy1 - sx1 * sy0)) / denom;
-
-  ctx.setTransform(m11, m21, m12, m22, m13, m23);
-  // Draw the full image - the clip region will limit what's visible
-  ctx.drawImage(img, 0, 0);
-  ctx.restore();
 }
 
 
