@@ -73,9 +73,9 @@ const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "sunset", label: "Sunset", preview: "linear-gradient(135deg,#ff6a3d,#f9c846)" },
   { id: "ocean", label: "Ocean", preview: "linear-gradient(135deg,#0ea5e9,#1e3a8a)" },
   { id: "violet", label: "Violet", preview: "linear-gradient(135deg,#7c3aed,#ec4899)" },
-  { id: "hand_park", label: "Hand — Sunny park", preview: `url(${handHoldParkImg})` },
-  { id: "hand_living", label: "Hand — Living room", preview: `url(${handHoldLivingImg})` },
-  { id: "hand_desk", label: "Hand — Desk", preview: `url(${handHoldDeskImg})` },
+  { id: "hand_park", label: "Hand hold — Park", preview: `url(${handHoldParkImg})` },
+  { id: "hand_living", label: "Hand hold — Living room", preview: `url(${handHoldLivingImg})` },
+  { id: "hand_desk", label: "Hand hold — Desk", preview: `url(${handHoldDeskImg})` },
   { id: "custom", label: "Custom color", preview: "custom" },
 ];
 
@@ -223,12 +223,12 @@ function Index() {
         const handImg = handImgActive;
         const handOnlyImg = handOnlyRefs.current[bg];
 
-        // Subtle handheld shake
+        // Subtle multi-frequency handheld shake — baked into canvas for exports
         const t = performance.now() / 1000;
-        const shakeAmt = Math.min(cw, ch) * 0.003;
-        const sx = Math.sin(t * 2.1) * shakeAmt + Math.sin(t * 5.7) * shakeAmt * 0.3;
-        const sy = Math.cos(t * 1.7) * shakeAmt + Math.cos(t * 6.3) * shakeAmt * 0.3;
-        const sr = Math.sin(t * 1.1) * 0.003;
+        const shakeAmt = Math.min(cw, ch) * 0.0025;
+        const sx = Math.sin(t * 1.8) * shakeAmt + Math.sin(t * 4.3) * shakeAmt * 0.4 + Math.sin(t * 7.9) * shakeAmt * 0.15;
+        const sy = Math.cos(t * 1.4) * shakeAmt + Math.cos(t * 5.1) * shakeAmt * 0.35 + Math.cos(t * 8.7) * shakeAmt * 0.12;
+        const sr = Math.sin(t * 0.9) * 0.002 + Math.sin(t * 2.7) * 0.0008;
 
         ctx.save();
         ctx.translate(cw / 2 + sx, ch / 2 + sy);
