@@ -244,7 +244,8 @@ function Index() {
         const phoneRect = HAND_PHONE_RECT[bg] || { cx: 0.5, cy: 0.5, w: 0.45, h: 0.7 };
 
         // Size the device frame to match the phone area in the photo
-        const drawH = hh * phoneRect.h;
+        // The scale slider adjusts the size relative to the grip area
+        const drawH = hh * phoneRect.h * scale;
         const drawW = drawH * dev.aspect;
 
         // Center the device frame at the phone's center point
