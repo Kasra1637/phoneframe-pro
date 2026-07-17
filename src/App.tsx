@@ -38,10 +38,12 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "float_dark" | "float_gradient" | "float_premium";
+type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "float_dark" | "float_gradient" | "float_premium" | "float_neon" | "float_spotlight";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
   { id: "float_premium", label: "3D Float — Premium", preview: "linear-gradient(135deg,#08080f,#12121e,#0a0a14)" },
+  { id: "float_neon", label: "3D Float — Neon Aurora", preview: "linear-gradient(135deg,#0a0014,#1a0030,#001a2e)" },
+  { id: "float_spotlight", label: "3D Float — Spotlight", preview: "linear-gradient(135deg,#000000,#0a0a0a,#000000)" },
   { id: "float_dark", label: "3D Float — Dark", preview: "linear-gradient(135deg,#0a0a0f,#1a1a2e)" },
   { id: "float_gradient", label: "3D Float — Gradient", preview: "linear-gradient(135deg,#1e3a5f,#0ea5e9)" },
   { id: "white", label: "White", preview: "#ffffff" },
@@ -182,6 +184,14 @@ function Index() {
           // Deep black base
           ctx.fillStyle = "#050508";
           ctx.fillRect(0, 0, cw, ch);
+        } else if (bg === "float_neon") {
+          // Deep dark purple-black base
+          ctx.fillStyle = "#04000a";
+          ctx.fillRect(0, 0, cw, ch);
+        } else if (bg === "float_spotlight") {
+          // Pure black base
+          ctx.fillStyle = "#000000";
+          ctx.fillRect(0, 0, cw, ch);
         } else if (bg === "float_dark") {
           const g = ctx.createRadialGradient(cw * 0.5, ch * 0.4, 0, cw * 0.5, ch * 0.5, cw * 0.7);
           g.addColorStop(0, "#1a1a2e");
@@ -269,6 +279,140 @@ function Index() {
           ctx.restore();
         }
 
+        // === NEON AURORA: Flowing colorful aurora waves behind the phone ===
+        if (bg === "float_neon") {
+          const glowX = cx2 + bobX * 1.5;
+          const glowY = cy2 + bobY * 1.2;
+
+          // Aurora wave 1 — pink/magenta flowing from top-left
+          ctx.save();
+          ctx.globalAlpha = 0.12;
+          const wave1Y = ch * 0.35 + Math.sin(t * 0.4) * ch * 0.08;
+          const wave1Grad = ctx.createRadialGradient(
+            cw * 0.3 + Math.sin(t * 0.3) * cw * 0.1, wave1Y, 0,
+            cw * 0.3, wave1Y, cw * 0.5
+          );
+          wave1Grad.addColorStop(0, "rgba(255, 50, 150, 1)");
+          wave1Grad.addColorStop(0.4, "rgba(200, 30, 120, 0.6)");
+          wave1Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = wave1Grad;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Aurora wave 2 — cyan/teal flowing from top-right
+          ctx.save();
+          ctx.globalAlpha = 0.10;
+          const wave2Y = ch * 0.45 + Math.sin(t * 0.35 + 1.5) * ch * 0.06;
+          const wave2Grad = ctx.createRadialGradient(
+            cw * 0.7 + Math.sin(t * 0.25 + 2) * cw * 0.08, wave2Y, 0,
+            cw * 0.7, wave2Y, cw * 0.45
+          );
+          wave2Grad.addColorStop(0, "rgba(0, 220, 255, 1)");
+          wave2Grad.addColorStop(0.4, "rgba(0, 150, 200, 0.5)");
+          wave2Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = wave2Grad;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Aurora wave 3 — purple glow pulsing behind center (synced to bob)
+          ctx.save();
+          const purpleAlpha = 0.08 + Math.sin(t * 0.5) * 0.03;
+          ctx.globalAlpha = purpleAlpha;
+          const wave3Grad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, drawH * 0.7);
+          wave3Grad.addColorStop(0, "rgba(140, 50, 255, 1)");
+          wave3Grad.addColorStop(0.5, "rgba(80, 20, 180, 0.5)");
+          wave3Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = wave3Grad;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Subtle horizontal streak lines (aurora bands)
+          ctx.save();
+          ctx.globalAlpha = 0.04;
+          for (let i = 0; i < 5; i++) {
+            const streakY = ch * (0.2 + i * 0.15) + Math.sin(t * 0.2 + i * 0.8) * ch * 0.03;
+            const streakGrad = ctx.createLinearGradient(0, streakY - ch * 0.02, 0, streakY + ch * 0.02);
+            streakGrad.addColorStop(0, "rgba(0,0,0,0)");
+            streakGrad.addColorStop(0.5, i % 2 === 0 ? "rgba(255,100,200,1)" : "rgba(0,200,255,1)");
+            streakGrad.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = streakGrad;
+            ctx.fillRect(0, streakY - ch * 0.02, cw, ch * 0.04);
+          }
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
+
+        // === SPOTLIGHT: Dramatic sweeping light beam ===
+        if (bg === "float_spotlight") {
+          // Slow sweeping spotlight beam
+          const spotAngle = t * 0.2; // slow sweep
+          const spotX = cx2 + Math.sin(spotAngle) * cw * 0.3;
+          const spotY = ch * 0.1; // from top
+
+          // Main spotlight cone
+          ctx.save();
+          ctx.globalAlpha = 0.15;
+          ctx.beginPath();
+          ctx.moveTo(spotX, spotY);
+          const coneWidth = 0.18 + Math.sin(t * 0.4) * 0.03;
+          ctx.lineTo(spotX + Math.cos(-Math.PI/2 - coneWidth) * ch * 1.2, spotY + Math.sin(-Math.PI/2 - coneWidth) * -ch * 1.2);
+          ctx.lineTo(spotX + Math.cos(-Math.PI/2 + coneWidth) * ch * 1.2, spotY + Math.sin(-Math.PI/2 + coneWidth) * -ch * 1.2);
+          ctx.closePath();
+          // Actually we want the cone going DOWN not up
+          ctx.restore();
+
+          ctx.save();
+          ctx.globalAlpha = 0.12;
+          ctx.beginPath();
+          ctx.moveTo(spotX, spotY);
+          const coneW = 0.2 + Math.sin(t * 0.4) * 0.04;
+          const beamEndL = { x: spotX - Math.sin(coneW) * ch, y: spotY + Math.cos(coneW) * ch };
+          const beamEndR = { x: spotX + Math.sin(coneW) * ch, y: spotY + Math.cos(coneW) * ch };
+          ctx.lineTo(beamEndL.x, beamEndL.y);
+          ctx.lineTo(beamEndR.x, beamEndR.y);
+          ctx.closePath();
+          const spotGrad = ctx.createLinearGradient(spotX, spotY, spotX, ch);
+          spotGrad.addColorStop(0, "rgba(255, 255, 255, 1)");
+          spotGrad.addColorStop(0.3, "rgba(200, 210, 255, 0.4)");
+          spotGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = spotGrad;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Secondary softer fill light from opposite side
+          ctx.save();
+          const spot2X = cx2 - Math.sin(spotAngle + 1.5) * cw * 0.25;
+          ctx.globalAlpha = 0.06;
+          ctx.beginPath();
+          ctx.moveTo(spot2X, 0);
+          ctx.lineTo(spot2X - cw * 0.25, ch);
+          ctx.lineTo(spot2X + cw * 0.25, ch);
+          ctx.closePath();
+          const spot2Grad = ctx.createLinearGradient(spot2X, 0, spot2X, ch);
+          spot2Grad.addColorStop(0, "rgba(180, 200, 255, 1)");
+          spot2Grad.addColorStop(0.5, "rgba(100, 120, 180, 0.3)");
+          spot2Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = spot2Grad;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Ambient glow at phone position (synced to bob)
+          ctx.save();
+          ctx.globalAlpha = 0.08;
+          const ambGlow = ctx.createRadialGradient(cx2 + bobX, cy2 + bobY, 0, cx2 + bobX, cy2 + bobY, drawH * 0.5);
+          ambGlow.addColorStop(0, "rgba(200, 210, 255, 1)");
+          ambGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = ambGlow;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
+
         // Draw shadow (ellipse below the phone, offset and blurred)
         ctx.save();
         ctx.globalAlpha = 0.25;
@@ -301,7 +445,7 @@ function Index() {
         ctx.restore();
 
         // === PREMIUM: Vignette overlay (after phone, darkens edges) ===
-        if (bg === "float_premium") {
+        if (bg === "float_premium" || bg === "float_neon" || bg === "float_spotlight") {
           ctx.save();
           const vignette = ctx.createRadialGradient(
             cx2, cy2, Math.min(cw, ch) * 0.25,
