@@ -43,7 +43,7 @@ const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
   { id: "float_premium", label: "3D Float — Premium", preview: "linear-gradient(135deg,#08080f,#12121e,#0a0a14)" },
   { id: "float_neon", label: "3D Float — Neon Aurora", preview: "linear-gradient(135deg,#0a0014,#1a0030,#001a2e)" },
-  { id: "float_spotlight", label: "3D Float — Spotlight", preview: "linear-gradient(135deg,#000000,#0a0a0a,#000000)" },
+  { id: "float_spotlight", label: "3D Float — Ambient", preview: "linear-gradient(135deg,#0a0812,#0f0a18,#080610)" },
   { id: "float_dark", label: "3D Float — Dark", preview: "linear-gradient(135deg,#0a0a0f,#1a1a2e)" },
   { id: "float_gradient", label: "3D Float — Gradient", preview: "linear-gradient(135deg,#1e3a5f,#0ea5e9)" },
   { id: "white", label: "White", preview: "#ffffff" },
@@ -189,8 +189,8 @@ function Index() {
           ctx.fillStyle = "#04000a";
           ctx.fillRect(0, 0, cw, ch);
         } else if (bg === "float_spotlight") {
-          // Pure black base
-          ctx.fillStyle = "#000000";
+          // Soft deep navy-black base (calm, non-distracting)
+          ctx.fillStyle = "#07060c";
           ctx.fillRect(0, 0, cw, ch);
         } else if (bg === "float_dark") {
           const g = ctx.createRadialGradient(cw * 0.5, ch * 0.4, 0, cw * 0.5, ch * 0.5, cw * 0.7);
@@ -345,69 +345,36 @@ function Index() {
           ctx.restore();
         }
 
-        // === SPOTLIGHT: Dramatic sweeping light beam ===
+        // === AMBIENT: Calm, subtle breathing glow for voice journaling app ===
         if (bg === "float_spotlight") {
-          // Slow sweeping spotlight beam
-          const spotAngle = t * 0.2; // slow sweep
-          const spotX = cx2 + Math.sin(spotAngle) * cw * 0.3;
-          const spotY = ch * 0.1; // from top
-
-          // Main spotlight cone
+          // Soft warm-purple breathing glow behind the phone (synced to bob)
+          // Slow, meditative, non-distracting — like a quiet room at night
           ctx.save();
-          ctx.globalAlpha = 0.15;
-          ctx.beginPath();
-          ctx.moveTo(spotX, spotY);
-          const coneWidth = 0.18 + Math.sin(t * 0.4) * 0.03;
-          ctx.lineTo(spotX + Math.cos(-Math.PI/2 - coneWidth) * ch * 1.2, spotY + Math.sin(-Math.PI/2 - coneWidth) * -ch * 1.2);
-          ctx.lineTo(spotX + Math.cos(-Math.PI/2 + coneWidth) * ch * 1.2, spotY + Math.sin(-Math.PI/2 + coneWidth) * -ch * 1.2);
-          ctx.closePath();
-          // Actually we want the cone going DOWN not up
-          ctx.restore();
-
-          ctx.save();
-          ctx.globalAlpha = 0.12;
-          ctx.beginPath();
-          ctx.moveTo(spotX, spotY);
-          const coneW = 0.2 + Math.sin(t * 0.4) * 0.04;
-          const beamEndL = { x: spotX - Math.sin(coneW) * ch, y: spotY + Math.cos(coneW) * ch };
-          const beamEndR = { x: spotX + Math.sin(coneW) * ch, y: spotY + Math.cos(coneW) * ch };
-          ctx.lineTo(beamEndL.x, beamEndL.y);
-          ctx.lineTo(beamEndR.x, beamEndR.y);
-          ctx.closePath();
-          const spotGrad = ctx.createLinearGradient(spotX, spotY, spotX, ch);
-          spotGrad.addColorStop(0, "rgba(255, 255, 255, 1)");
-          spotGrad.addColorStop(0.3, "rgba(200, 210, 255, 0.4)");
-          spotGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = spotGrad;
-          ctx.fill();
+          const breathAlpha = 0.07 + Math.sin(t * 0.4) * 0.025;
+          ctx.globalAlpha = breathAlpha;
+          const ambX = cx2 + bobX * 0.8;
+          const ambY = cy2 + bobY * 0.6;
+          const ambR = Math.max(drawW, drawH) * 0.75;
+          const ambGrad = ctx.createRadialGradient(ambX, ambY, 0, ambX, ambY, ambR);
+          ambGrad.addColorStop(0, "rgba(120, 80, 180, 1)");
+          ambGrad.addColorStop(0.4, "rgba(80, 50, 140, 0.6)");
+          ambGrad.addColorStop(0.7, "rgba(40, 25, 80, 0.2)");
+          ambGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = ambGrad;
+          ctx.fillRect(0, 0, cw, ch);
           ctx.globalAlpha = 1;
           ctx.restore();
 
-          // Secondary softer fill light from opposite side
+          // Very faint secondary warm glow (lower, slightly offset)
           ctx.save();
-          const spot2X = cx2 - Math.sin(spotAngle + 1.5) * cw * 0.25;
-          ctx.globalAlpha = 0.06;
-          ctx.beginPath();
-          ctx.moveTo(spot2X, 0);
-          ctx.lineTo(spot2X - cw * 0.25, ch);
-          ctx.lineTo(spot2X + cw * 0.25, ch);
-          ctx.closePath();
-          const spot2Grad = ctx.createLinearGradient(spot2X, 0, spot2X, ch);
-          spot2Grad.addColorStop(0, "rgba(180, 200, 255, 1)");
-          spot2Grad.addColorStop(0.5, "rgba(100, 120, 180, 0.3)");
-          spot2Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = spot2Grad;
-          ctx.fill();
-          ctx.globalAlpha = 1;
-          ctx.restore();
-
-          // Ambient glow at phone position (synced to bob)
-          ctx.save();
-          ctx.globalAlpha = 0.08;
-          const ambGlow = ctx.createRadialGradient(cx2 + bobX, cy2 + bobY, 0, cx2 + bobX, cy2 + bobY, drawH * 0.5);
-          ambGlow.addColorStop(0, "rgba(200, 210, 255, 1)");
-          ambGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = ambGlow;
+          const warmBreath = 0.04 + Math.sin(t * 0.3 + 1.2) * 0.015;
+          ctx.globalAlpha = warmBreath;
+          const warmY = cy2 + drawH * 0.2 + bobY * 0.5;
+          const warmGrad2 = ctx.createRadialGradient(ambX, warmY, 0, ambX, warmY, ambR * 0.6);
+          warmGrad2.addColorStop(0, "rgba(160, 100, 80, 1)");
+          warmGrad2.addColorStop(0.5, "rgba(100, 60, 50, 0.4)");
+          warmGrad2.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = warmGrad2;
           ctx.fillRect(0, 0, cw, ch);
           ctx.globalAlpha = 1;
           ctx.restore();
