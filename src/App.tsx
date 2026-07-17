@@ -38,20 +38,15 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "float_dark" | "float_gradient" | "float_premium" | "float_neon" | "float_spotlight";
+type BgId = "transparent" | "float_lavender" | "float_blush" | "float_sage" | "float_cloud" | "float_peach" | "float_mist";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
-  { id: "float_premium", label: "3D Float — Premium", preview: "linear-gradient(135deg,#08080f,#12121e,#0a0a14)" },
-  { id: "float_neon", label: "3D Float — Neon Aurora", preview: "linear-gradient(135deg,#0a0014,#1a0030,#001a2e)" },
-  { id: "float_spotlight", label: "3D Float — Ambient", preview: "linear-gradient(135deg,#0a0812,#0f0a18,#080610)" },
-  { id: "float_dark", label: "3D Float — Dark", preview: "linear-gradient(135deg,#0a0a0f,#1a1a2e)" },
-  { id: "float_gradient", label: "3D Float — Gradient", preview: "linear-gradient(135deg,#1e3a5f,#0ea5e9)" },
-  { id: "white", label: "White", preview: "#ffffff" },
-  { id: "black", label: "Black", preview: "#000000" },
-  { id: "sunset", label: "Sunset", preview: "linear-gradient(135deg,#ff6a3d,#f9c846)" },
-  { id: "ocean", label: "Ocean", preview: "linear-gradient(135deg,#0ea5e9,#1e3a8a)" },
-  { id: "violet", label: "Violet", preview: "linear-gradient(135deg,#7c3aed,#ec4899)" },
-  { id: "custom", label: "Custom color", preview: "custom" },
+  { id: "float_lavender", label: "Soft Lavender", preview: "linear-gradient(135deg,#e8e0f0,#d4c8e8)" },
+  { id: "float_blush", label: "Warm Blush", preview: "linear-gradient(135deg,#f5e6e8,#ecd4d8)" },
+  { id: "float_sage", label: "Calm Sage", preview: "linear-gradient(135deg,#e2ebe6,#cdddd4)" },
+  { id: "float_cloud", label: "Soft Cloud", preview: "linear-gradient(135deg,#edf0f5,#dde3ec)" },
+  { id: "float_peach", label: "Gentle Peach", preview: "linear-gradient(135deg,#faeee6,#f0ddd0)" },
+  { id: "float_mist", label: "Morning Mist", preview: "linear-gradient(135deg,#e6ecf0,#d8e0e8)" },
 ];
 
 
@@ -93,8 +88,7 @@ function Index() {
   const [device, setDevice] = useState<DeviceId>("s24");
   const [frameColor, setFrameColor] = useState<"black" | "white">("black");
   const [preset, setPreset] = useState<PresetId>("tiktok");
-  const [bg, setBg] = useState<BgId>("float_premium");
-  const [customColor, setCustomColor] = useState("#0b0b0f");
+  const [bg, setBg] = useState<BgId>("float_lavender");
   const [scale, setScale] = useState(0.82);
   const [mockupStretchY, setMockupStretchY] = useState(1);
   const [videoFit, setVideoFit] = useState<"cover" | "contain" | "fill">("cover");
@@ -179,31 +173,22 @@ function Index() {
         // bobbing animation. Shadow underneath grounds it.
         const t = performance.now() / 1000;
 
-        // Background
-        if (bg === "float_premium") {
-          // Deep black base
-          ctx.fillStyle = "#050508";
-          ctx.fillRect(0, 0, cw, ch);
-        } else if (bg === "float_neon") {
-          // Deep dark purple-black base
-          ctx.fillStyle = "#04000a";
-          ctx.fillRect(0, 0, cw, ch);
-        } else if (bg === "float_spotlight") {
-          // Soft deep navy-black base (calm, non-distracting)
-          ctx.fillStyle = "#07060c";
-          ctx.fillRect(0, 0, cw, ch);
-        } else if (bg === "float_dark") {
-          const g = ctx.createRadialGradient(cw * 0.5, ch * 0.4, 0, cw * 0.5, ch * 0.5, cw * 0.7);
-          g.addColorStop(0, "#1a1a2e");
-          g.addColorStop(1, "#0a0a0f");
-          ctx.fillStyle = g;
-        } else {
-          const g = ctx.createLinearGradient(0, 0, cw, ch);
-          g.addColorStop(0, "#0c2d48");
-          g.addColorStop(0.5, "#1a4a6e");
-          g.addColorStop(1, "#0ea5e9");
-          ctx.fillStyle = g;
-        }
+        // Background — soft gradient fill based on selected palette
+        const SOFT_COLORS: Record<string, { bg1: string; bg2: string; glow: string; accent: string }> = {
+          float_lavender: { bg1: "#ede6f5", bg2: "#d8cce8", glow: "rgba(150, 120, 200, 0.12)", accent: "rgba(130, 100, 180, 0.06)" },
+          float_blush:    { bg1: "#f7eaec", bg2: "#efd8dc", glow: "rgba(200, 120, 140, 0.12)", accent: "rgba(180, 100, 120, 0.06)" },
+          float_sage:     { bg1: "#e6ede8", bg2: "#d0e0d6", glow: "rgba(100, 160, 120, 0.12)", accent: "rgba(80, 140, 100, 0.06)" },
+          float_cloud:    { bg1: "#eef2f7", bg2: "#dfe6f0", glow: "rgba(120, 150, 200, 0.10)", accent: "rgba(100, 130, 180, 0.05)" },
+          float_peach:    { bg1: "#fbf0e8", bg2: "#f2e0d2", glow: "rgba(200, 140, 100, 0.12)", accent: "rgba(180, 120, 80, 0.06)" },
+          float_mist:     { bg1: "#e8eef2", bg2: "#dae4ec", glow: "rgba(100, 140, 180, 0.10)", accent: "rgba(80, 120, 160, 0.06)" },
+        };
+        const palette = SOFT_COLORS[bg] || SOFT_COLORS.float_lavender;
+
+        // Soft gradient background
+        const bgGrad = ctx.createLinearGradient(0, 0, cw * 0.3, ch);
+        bgGrad.addColorStop(0, palette.bg1);
+        bgGrad.addColorStop(1, palette.bg2);
+        ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, cw, ch);
 
         // Phone dimensions
@@ -216,169 +201,37 @@ function Index() {
         // Float animation: gentle bob + subtle tilt
         const bobY = Math.sin(t * 1.2) * (ch * 0.012) + Math.sin(t * 2.8) * (ch * 0.004);
         const bobX = Math.sin(t * 0.8) * (cw * 0.003);
-        const tiltX = Math.sin(t * 0.7) * 0.03;  // slight X rotation (perspective)
-        const tiltY = Math.sin(t * 1.1) * 0.02;  // slight Y rotation
-        const tiltZ = Math.sin(t * 0.5) * 0.008; // very subtle Z rotation
+        const tiltX = Math.sin(t * 0.7) * 0.03;
+        const tiltY = Math.sin(t * 1.1) * 0.02;
+        const tiltZ = Math.sin(t * 0.5) * 0.008;
 
-        // === PREMIUM: Animated light rays + glow + vignette ===
-        if (bg === "float_premium") {
-          // Soft radial glow behind the phone — synced to bobbing
-          const glowX = cx2 + bobX * 1.5;
-          const glowY = cy2 + bobY * 1.2;
-          const glowR = Math.max(drawW, drawH) * 0.9;
-          ctx.save();
-          const glow = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR);
-          glow.addColorStop(0, "rgba(60, 80, 140, 0.18)");
-          glow.addColorStop(0.3, "rgba(40, 55, 100, 0.10)");
-          glow.addColorStop(0.6, "rgba(20, 30, 60, 0.05)");
-          glow.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = glow;
-          ctx.fillRect(0, 0, cw, ch);
-          ctx.restore();
+        // Soft breathing glow behind phone — synced to bob, color matches palette
+        ctx.save();
+        const glowAlpha = 0.06 + Math.sin(t * 0.4) * 0.02;
+        ctx.globalAlpha = glowAlpha;
+        const glowX = cx2 + bobX * 1.2;
+        const glowY = cy2 + bobY * 0.8;
+        const glowR = Math.max(drawW, drawH) * 0.8;
+        const glowGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR);
+        glowGrad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
+        glowGrad.addColorStop(0.5, palette.glow);
+        glowGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = glowGrad;
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.globalAlpha = 1;
+        ctx.restore();
 
-          // Animated light rays — slow rotating beams from behind the phone
-          ctx.save();
-          ctx.globalAlpha = 0.06;
-          const rayCount = 8;
-          const rayBaseAngle = t * 0.15; // very slow rotation
-          for (let i = 0; i < rayCount; i++) {
-            const angle = rayBaseAngle + (i / rayCount) * Math.PI * 2;
-            const rayLen = Math.max(cw, ch) * 0.8;
-            const rayWidth = 0.08 + Math.sin(t * 0.3 + i * 1.7) * 0.03; // subtle breathing
-            ctx.beginPath();
-            ctx.moveTo(glowX, glowY);
-            ctx.lineTo(
-              glowX + Math.cos(angle - rayWidth) * rayLen,
-              glowY + Math.sin(angle - rayWidth) * rayLen
-            );
-            ctx.lineTo(
-              glowX + Math.cos(angle + rayWidth) * rayLen,
-              glowY + Math.sin(angle + rayWidth) * rayLen
-            );
-            ctx.closePath();
-            const rayGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, rayLen);
-            rayGrad.addColorStop(0, "rgba(100, 130, 200, 1)");
-            rayGrad.addColorStop(0.4, "rgba(60, 80, 140, 0.5)");
-            rayGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
-            ctx.fillStyle = rayGrad;
-            ctx.fill();
-          }
-          ctx.globalAlpha = 1;
-          ctx.restore();
-
-          // Secondary warm glow pulse (very subtle, adds life)
-          ctx.save();
-          const pulseAlpha = 0.04 + Math.sin(t * 0.6) * 0.02;
-          ctx.globalAlpha = pulseAlpha;
-          const warmGlow = ctx.createRadialGradient(glowX, glowY - drawH * 0.1, 0, glowX, glowY, glowR * 0.6);
-          warmGlow.addColorStop(0, "rgba(180, 140, 255, 1)");
-          warmGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = warmGlow;
-          ctx.fillRect(0, 0, cw, ch);
-          ctx.globalAlpha = 1;
-          ctx.restore();
-        }
-
-        // === NEON AURORA: Flowing colorful aurora waves behind the phone ===
-        if (bg === "float_neon") {
-          const glowX = cx2 + bobX * 1.5;
-          const glowY = cy2 + bobY * 1.2;
-
-          // Aurora wave 1 — pink/magenta flowing from top-left
-          ctx.save();
-          ctx.globalAlpha = 0.12;
-          const wave1Y = ch * 0.35 + Math.sin(t * 0.4) * ch * 0.08;
-          const wave1Grad = ctx.createRadialGradient(
-            cw * 0.3 + Math.sin(t * 0.3) * cw * 0.1, wave1Y, 0,
-            cw * 0.3, wave1Y, cw * 0.5
-          );
-          wave1Grad.addColorStop(0, "rgba(255, 50, 150, 1)");
-          wave1Grad.addColorStop(0.4, "rgba(200, 30, 120, 0.6)");
-          wave1Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = wave1Grad;
-          ctx.fillRect(0, 0, cw, ch);
-          ctx.globalAlpha = 1;
-          ctx.restore();
-
-          // Aurora wave 2 — cyan/teal flowing from top-right
-          ctx.save();
-          ctx.globalAlpha = 0.10;
-          const wave2Y = ch * 0.45 + Math.sin(t * 0.35 + 1.5) * ch * 0.06;
-          const wave2Grad = ctx.createRadialGradient(
-            cw * 0.7 + Math.sin(t * 0.25 + 2) * cw * 0.08, wave2Y, 0,
-            cw * 0.7, wave2Y, cw * 0.45
-          );
-          wave2Grad.addColorStop(0, "rgba(0, 220, 255, 1)");
-          wave2Grad.addColorStop(0.4, "rgba(0, 150, 200, 0.5)");
-          wave2Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = wave2Grad;
-          ctx.fillRect(0, 0, cw, ch);
-          ctx.globalAlpha = 1;
-          ctx.restore();
-
-          // Aurora wave 3 — purple glow pulsing behind center (synced to bob)
-          ctx.save();
-          const purpleAlpha = 0.08 + Math.sin(t * 0.5) * 0.03;
-          ctx.globalAlpha = purpleAlpha;
-          const wave3Grad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, drawH * 0.7);
-          wave3Grad.addColorStop(0, "rgba(140, 50, 255, 1)");
-          wave3Grad.addColorStop(0.5, "rgba(80, 20, 180, 0.5)");
-          wave3Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = wave3Grad;
-          ctx.fillRect(0, 0, cw, ch);
-          ctx.globalAlpha = 1;
-          ctx.restore();
-
-          // Subtle horizontal streak lines (aurora bands)
-          ctx.save();
-          ctx.globalAlpha = 0.04;
-          for (let i = 0; i < 5; i++) {
-            const streakY = ch * (0.2 + i * 0.15) + Math.sin(t * 0.2 + i * 0.8) * ch * 0.03;
-            const streakGrad = ctx.createLinearGradient(0, streakY - ch * 0.02, 0, streakY + ch * 0.02);
-            streakGrad.addColorStop(0, "rgba(0,0,0,0)");
-            streakGrad.addColorStop(0.5, i % 2 === 0 ? "rgba(255,100,200,1)" : "rgba(0,200,255,1)");
-            streakGrad.addColorStop(1, "rgba(0,0,0,0)");
-            ctx.fillStyle = streakGrad;
-            ctx.fillRect(0, streakY - ch * 0.02, cw, ch * 0.04);
-          }
-          ctx.globalAlpha = 1;
-          ctx.restore();
-        }
-
-        // === AMBIENT: Calm, subtle breathing glow for voice journaling app ===
-        if (bg === "float_spotlight") {
-          // Soft warm-purple breathing glow behind the phone (synced to bob)
-          // Slow, meditative, non-distracting — like a quiet room at night
-          ctx.save();
-          const breathAlpha = 0.07 + Math.sin(t * 0.4) * 0.025;
-          ctx.globalAlpha = breathAlpha;
-          const ambX = cx2 + bobX * 0.8;
-          const ambY = cy2 + bobY * 0.6;
-          const ambR = Math.max(drawW, drawH) * 0.75;
-          const ambGrad = ctx.createRadialGradient(ambX, ambY, 0, ambX, ambY, ambR);
-          ambGrad.addColorStop(0, "rgba(120, 80, 180, 1)");
-          ambGrad.addColorStop(0.4, "rgba(80, 50, 140, 0.6)");
-          ambGrad.addColorStop(0.7, "rgba(40, 25, 80, 0.2)");
-          ambGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = ambGrad;
-          ctx.fillRect(0, 0, cw, ch);
-          ctx.globalAlpha = 1;
-          ctx.restore();
-
-          // Very faint secondary warm glow (lower, slightly offset)
-          ctx.save();
-          const warmBreath = 0.04 + Math.sin(t * 0.3 + 1.2) * 0.015;
-          ctx.globalAlpha = warmBreath;
-          const warmY = cy2 + drawH * 0.2 + bobY * 0.5;
-          const warmGrad2 = ctx.createRadialGradient(ambX, warmY, 0, ambX, warmY, ambR * 0.6);
-          warmGrad2.addColorStop(0, "rgba(160, 100, 80, 1)");
-          warmGrad2.addColorStop(0.5, "rgba(100, 60, 50, 0.4)");
-          warmGrad2.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = warmGrad2;
-          ctx.fillRect(0, 0, cw, ch);
-          ctx.globalAlpha = 1;
-          ctx.restore();
-        }
+        // Secondary accent glow (slower breath, offset)
+        ctx.save();
+        const accentAlpha = 0.04 + Math.sin(t * 0.3 + 1) * 0.015;
+        ctx.globalAlpha = accentAlpha;
+        const accentGrad = ctx.createRadialGradient(glowX, glowY + drawH * 0.15, 0, glowX, glowY + drawH * 0.15, glowR * 0.5);
+        accentGrad.addColorStop(0, palette.accent.replace(/[\d.]+\)$/, "1)"));
+        accentGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = accentGrad;
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.globalAlpha = 1;
+        ctx.restore();
 
         // Draw shadow (ellipse below the phone, offset and blurred)
         ctx.save();
@@ -411,24 +264,21 @@ function Index() {
         drawPhone(ctx, 0, 0, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor);
         ctx.restore();
 
-        // === PREMIUM: Vignette overlay (after phone, darkens edges) ===
-        if (bg === "float_premium" || bg === "float_neon" || bg === "float_spotlight") {
-          ctx.save();
-          const vignette = ctx.createRadialGradient(
-            cx2, cy2, Math.min(cw, ch) * 0.25,
-            cx2, cy2, Math.max(cw, ch) * 0.7
-          );
-          vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
-          vignette.addColorStop(0.6, "rgba(0, 0, 0, 0)");
-          vignette.addColorStop(0.85, "rgba(0, 0, 0, 0.3)");
-          vignette.addColorStop(1, "rgba(0, 0, 0, 0.65)");
-          ctx.fillStyle = vignette;
-          ctx.fillRect(0, 0, cw, ch);
-          ctx.restore();
-        }
+        // Soft vignette overlay (subtle, draws eye to center)
+        ctx.save();
+        const vignette = ctx.createRadialGradient(
+          cx2, cy2, Math.min(cw, ch) * 0.3,
+          cx2, cy2, Math.max(cw, ch) * 0.7
+        );
+        vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+        vignette.addColorStop(0.7, "rgba(0, 0, 0, 0)");
+        vignette.addColorStop(1, "rgba(0, 0, 0, 0.08)");
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.restore();
 
       } else {
-        paintBackground(ctx, cw, ch, bg, customColor);
+        // Transparent background — just draw the phone centered (no fill)
         const fit = Math.min(cw / phoneW, ch / phoneH) * scale;
         const drawW = phoneW * fit;
         const drawH = phoneH * fit;
@@ -443,7 +293,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor]);
 
 
   const exportVideo = async () => {
@@ -687,16 +537,11 @@ function Index() {
                     style={
                       b.preview === "transparent"
                         ? { backgroundImage: "linear-gradient(45deg,#666 25%,transparent 25%),linear-gradient(-45deg,#666 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#666 75%),linear-gradient(-45deg,transparent 75%,#666 75%)", backgroundSize: "8px 8px", backgroundPosition: "0 0,0 4px,4px -4px,-4px 0", backgroundColor: "#222" }
-                        : b.preview === "custom"
-                          ? { background: customColor }
-                          : { background: b.preview }
+                        : { background: b.preview }
                     }
                   />
                 ))}
               </div>
-              {bg === "custom" && (
-                <input type="color" value={customColor} onChange={(e) => setCustomColor(e.target.value)} className="mt-2 h-8 w-full cursor-pointer rounded-lg bg-transparent" />
-              )}
             </Section>
 
 
@@ -1012,26 +857,3 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-
-function paintBackground(
-  ctx: CanvasRenderingContext2D, w: number, h: number, bg: BgId, custom: string,
-) {
-  if (bg === "transparent") return;
-  let fill: string | CanvasGradient = custom;
-  if (bg === "white") fill = "#ffffff";
-  else if (bg === "black") fill = "#000000";
-  else if (bg === "sunset") {
-    const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#ff6a3d"); g.addColorStop(1, "#f9c846"); fill = g;
-  } else if (bg === "ocean") {
-    const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#0ea5e9"); g.addColorStop(1, "#1e3a8a"); fill = g;
-  } else if (bg === "violet") {
-    const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#7c3aed"); g.addColorStop(1, "#ec4899"); fill = g;
-  } else if (bg === "custom") {
-    fill = custom;
-  }
-  ctx.fillStyle = fill;
-  ctx.fillRect(0, 0, w, h);
-}
