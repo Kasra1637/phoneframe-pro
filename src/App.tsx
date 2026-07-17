@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import handHoldDeskImg from "@/assets/hand-hold-desk.jpg";
 import handHoldLivingImg from "@/assets/hand-hold-livingroom.jpg";
+import handWomanImg from "@/assets/hand-woman.png";
 
-// Hand image aspect ratio (actual image dimensions: 848x1264)
+// Hand image aspect ratios
 const HAND_IMG_ASPECT = 848 / 1264;
+const HAND_WOMAN_ASPECT = 832 / 1268;
 const HAND_BG_SRC: Record<string, string> = {
   hand_living: handHoldLivingImg,
   hand_desk: handHoldDeskImg,
+  hand_woman: handWomanImg,
 };
 // Where the phone screen is in each hand image (normalized 0-1 coordinates).
 // The device frame renders at this position so the photo's fingers
@@ -14,6 +17,11 @@ const HAND_BG_SRC: Record<string, string> = {
 const HAND_PHONE_RECT: Record<string, { cx: number; cy: number; w: number; h: number }> = {
   hand_desk:   { cx: 0.476, cy: 0.558, w: 0.383, h: 0.672 },
   hand_living: { cx: 0.499, cy: 0.506, w: 0.600, h: 0.786 },
+  hand_woman:  { cx: 0.540, cy: 0.409, w: 0.341, h: 0.447 },
+};
+// Which hand images have real transparency (drawn ON TOP of device frame)
+const HAND_TRANSPARENT: Record<string, boolean> = {
+  hand_woman: true,
 };
 
 export default Index;
@@ -54,7 +62,7 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_living" | "hand_desk";
+type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_living" | "hand_desk" | "hand_woman";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
   { id: "white", label: "White", preview: "#ffffff" },
@@ -62,6 +70,7 @@ const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "sunset", label: "Sunset", preview: "linear-gradient(135deg,#ff6a3d,#f9c846)" },
   { id: "ocean", label: "Ocean", preview: "linear-gradient(135deg,#0ea5e9,#1e3a8a)" },
   { id: "violet", label: "Violet", preview: "linear-gradient(135deg,#7c3aed,#ec4899)" },
+  { id: "hand_woman", label: "Hand hold — Woman", preview: `url(${handWomanImg})` },
   { id: "hand_living", label: "Hand hold — Living room", preview: `url(${handHoldLivingImg})` },
   { id: "hand_desk", label: "Hand hold — Desk", preview: `url(${handHoldDeskImg})` },
   { id: "custom", label: "Custom color", preview: "custom" },
@@ -214,45 +223,43 @@ function Index() {
         ctx.rotate(sr);
         ctx.translate(-cw / 2, -ch / 2);
 
-        // === COMPOSITING: Full photo + device frame on top ===
-        // 1. Draw the full hand photo (hand, fingers, background scene)
-        // 2. Draw the device frame ON TOP at the phone's position
-        //    The fingers in the photo that wrap around the phone edges
-        //    remain visible from behind because they're part of the photo.
-        //    The device frame covers the phone screen area.
+        // === COMPOSITING ===
+        // For transparent hand images (hand_woman): draw device frame FIRST, hand ON TOP
+        // For photo backgrounds (desk/living): draw photo FIRST, device frame ON TOP
 
-        // --- Step 1: Draw the full hand photo (cover the canvas) ---
         const canvasAspect = cw / ch;
+        const imgAspect = HAND_TRANSPARENT[bg] ? HAND_WOMAN_ASPECT : HAND_IMG_ASPECT;
         let hw: number, hh: number;
-        if (canvasAspect > HAND_IMG_ASPECT) {
+        if (canvasAspect > imgAspect) {
           hw = cw;
-          hh = cw / HAND_IMG_ASPECT;
+          hh = cw / imgAspect;
         } else {
           hh = ch;
-          hw = ch * HAND_IMG_ASPECT;
+          hw = ch * imgAspect;
         }
         hw *= handZoom;
         hh *= handZoom;
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
-        ctx.drawImage(handImg, hx, hy, hw, hh);
-
-        // --- Step 2: Draw device frame at the phone's position ---
-        // The phone rect tells us where the phone screen is in the image.
-        // We place the device frame there so it aligns with the fingers.
+        // Device frame position (aligned to hand's grip point)
         const phoneRect = HAND_PHONE_RECT[bg] || { cx: 0.5, cy: 0.5, w: 0.45, h: 0.7 };
-
-        // Size the device frame to match the phone area in the photo
-        // The scale slider adjusts the size relative to the grip area
         const drawH = hh * phoneRect.h * scale;
         const drawW = drawH * dev.aspect;
-
-        // Center the device frame at the phone's center point
         const phoneX = hx + hw * phoneRect.cx - drawW / 2;
         const phoneY = hy + hh * phoneRect.cy - drawH / 2;
 
-        drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+        if (HAND_TRANSPARENT[bg]) {
+          // Transparent hand: background → device frame → hand on top
+          ctx.fillStyle = "#f5f0eb";
+          ctx.fillRect(0, 0, cw, ch);
+          drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+          ctx.drawImage(handImg, hx, hy, hw, hh);
+        } else {
+          // Photo background: photo → device frame on top
+          ctx.drawImage(handImg, hx, hy, hw, hh);
+          drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+        }
 
         ctx.restore();
 
