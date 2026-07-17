@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import handHoldDeskImg from "@/assets/hand-hold-desk.jpg";
 import handHoldLivingImg from "@/assets/hand-hold-livingroom.jpg";
 import handWomanImg from "@/assets/hand-woman.png";
 
@@ -7,22 +6,12 @@ import handWomanImg from "@/assets/hand-woman.png";
 const HAND_IMG_ASPECT = 848 / 1264;
 const HAND_WOMAN_ASPECT = 832 / 1268;
 const HAND_BG_SRC: Record<string, string> = {
-  hand_living: handHoldLivingImg,
-  hand_desk: handHoldDeskImg,
   hand_woman: handWomanImg,
 };
-// Where the phone screen is in each hand image (normalized 0-1 coordinates).
-// The device frame renders at this position so the photo's fingers
-// naturally wrap around the edges from behind.
-const HAND_PHONE_RECT: Record<string, { cx: number; cy: number; w: number; h: number }> = {
-  hand_desk:   { cx: 0.476, cy: 0.558, w: 0.383, h: 0.672 },
-  hand_living: { cx: 0.499, cy: 0.506, w: 0.600, h: 0.786 },
-  hand_woman:  { cx: 0.540, cy: 0.409, w: 0.341, h: 0.447 },
-};
-// Which hand images have real transparency (drawn ON TOP of device frame)
-const HAND_TRANSPARENT: Record<string, boolean> = {
-  hand_woman: true,
-};
+// Background scene image (used as blurred environment behind the hand)
+const HAND_BG_SCENE = handHoldLivingImg;
+// Where the phone is in the woman's hand image (normalized 0-1 coordinates)
+const HAND_PHONE_RECT = { cx: 0.540, cy: 0.409, w: 0.341, h: 0.447 };
 
 export default Index;
 
@@ -62,7 +51,7 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_living" | "hand_desk" | "hand_woman";
+type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_woman";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
   { id: "white", label: "White", preview: "#ffffff" },
@@ -70,9 +59,7 @@ const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "sunset", label: "Sunset", preview: "linear-gradient(135deg,#ff6a3d,#f9c846)" },
   { id: "ocean", label: "Ocean", preview: "linear-gradient(135deg,#0ea5e9,#1e3a8a)" },
   { id: "violet", label: "Violet", preview: "linear-gradient(135deg,#7c3aed,#ec4899)" },
-  { id: "hand_woman", label: "Hand hold — Woman", preview: `url(${handWomanImg})` },
-  { id: "hand_living", label: "Hand hold — Living room", preview: `url(${handHoldLivingImg})` },
-  { id: "hand_desk", label: "Hand hold — Desk", preview: `url(${handHoldDeskImg})` },
+  { id: "hand_woman", label: "Hand hold (realistic)", preview: `url(${handWomanImg})` },
   { id: "custom", label: "Custom color", preview: "custom" },
 ];
 
@@ -139,6 +126,7 @@ function Index() {
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const handImgRefs = useRef<Record<string, HTMLImageElement>>({});
+  const sceneImgRef = useRef<HTMLImageElement | null>(null);
 
 
   useEffect(() => {
@@ -149,6 +137,13 @@ function Index() {
       img.src = src;
       img.onload = () => { handImgRefs.current[key] = img; };
     });
+    // Load background scene image
+    if (!sceneImgRef.current) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = HAND_BG_SCENE;
+      img.onload = () => { sceneImgRef.current = img; };
+    }
   }, []);
 
   const handleFile = (file: File) => {
@@ -224,11 +219,10 @@ function Index() {
         ctx.translate(-cw / 2, -ch / 2);
 
         // === COMPOSITING ===
-        // All hand modes: blurred scene background → device frame → hand PNG on top
-        // This prevents any extra hand from showing through.
+        // Blurred scene background → device frame → woman's hand on top
 
         const canvasAspect = cw / ch;
-        const imgAspect = HAND_TRANSPARENT[bg] ? HAND_WOMAN_ASPECT : HAND_IMG_ASPECT;
+        const imgAspect = HAND_WOMAN_ASPECT;
         let hw: number, hh: number;
         if (canvasAspect > imgAspect) {
           hw = cw;
@@ -243,15 +237,14 @@ function Index() {
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
         // Device frame position (aligned to woman's hand grip point)
-        const phoneRect = HAND_PHONE_RECT["hand_woman"] || { cx: 0.5, cy: 0.5, w: 0.45, h: 0.7 };
+        const phoneRect = HAND_PHONE_RECT;
         const drawH = hh * phoneRect.h * scale;
         const drawW = drawH * dev.aspect;
         const phoneX = hx + hw * phoneRect.cx - drawW / 2;
         const phoneY = hy + hh * phoneRect.cy - drawH / 2;
 
-        // Background: use a heavily blurred version of the living room
-        // for a soft home environment (no visible hand/phone in background)
-        const bgImg = handImgRefs.current["hand_living"];
+        // Background: heavily blurred living room scene
+        const bgImg = sceneImgRef.current;
         if (bgImg) {
           ctx.save();
           ctx.filter = `blur(${Math.round(cw * 0.035)}px)`;
@@ -270,20 +263,8 @@ function Index() {
         // Device frame with video
         drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
 
-        // Hand overlay on top (woman's hand for all hand modes)
-        const womanImg = handImgRefs.current["hand_woman"];
-        if (womanImg) {
-          // Use the woman's hand for all hand backgrounds
-          const whAspect = HAND_WOMAN_ASPECT;
-          let whw: number, whh: number;
-          if (canvasAspect > whAspect) { whw = cw; whh = cw / whAspect; }
-          else { whh = ch; whw = ch * whAspect; }
-          whw *= handZoom;
-          whh *= handZoom;
-          const whx = (cw - whw) / 2 + handOffsetX * cw;
-          const why = (ch - whh) / 2 + handOffsetY * ch;
-          ctx.drawImage(womanImg, whx, why, whw, whh);
-        }
+        // Woman's hand on top
+        ctx.drawImage(handImg, hx, hy, hw, hh);
 
         ctx.restore();
 
