@@ -250,9 +250,27 @@ function Index() {
         const phoneY = hy + hh * phoneRect.cy - drawH / 2;
 
         if (HAND_TRANSPARENT[bg]) {
-          // Transparent hand: background → device frame → hand on top
-          ctx.fillStyle = "#f5f0eb";
-          ctx.fillRect(0, 0, cw, ch);
+          // Transparent hand: living room background → device frame → hand on top
+          // Use the living room photo as a natural home environment background
+          const livingImg = handImgRefs.current["hand_living"];
+          if (livingImg) {
+            // Draw living room background (cover the canvas)
+            const bgAspect = HAND_IMG_ASPECT;
+            let bw: number, bh: number;
+            if (canvasAspect > bgAspect) {
+              bw = cw;
+              bh = cw / bgAspect;
+            } else {
+              bh = ch;
+              bw = ch * bgAspect;
+            }
+            const bx = (cw - bw) / 2;
+            const by = (ch - bh) / 2;
+            ctx.drawImage(livingImg, bx, by, bw, bh);
+          } else {
+            ctx.fillStyle = "#f5f0eb";
+            ctx.fillRect(0, 0, cw, ch);
+          }
           drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
           ctx.drawImage(handImg, hx, hy, hw, hh);
         } else {
