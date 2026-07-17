@@ -224,8 +224,8 @@ function Index() {
         ctx.translate(-cw / 2, -ch / 2);
 
         // === COMPOSITING ===
-        // For transparent hand images (hand_woman): draw device frame FIRST, hand ON TOP
-        // For photo backgrounds (desk/living): draw photo FIRST, device frame ON TOP
+        // All hand modes: blurred scene background → device frame → hand PNG on top
+        // This prevents any extra hand from showing through.
 
         const canvasAspect = cw / ch;
         const imgAspect = HAND_TRANSPARENT[bg] ? HAND_WOMAN_ASPECT : HAND_IMG_ASPECT;
@@ -242,41 +242,47 @@ function Index() {
         const hx = (cw - hw) / 2 + handOffsetX * cw;
         const hy = (ch - hh) / 2 + handOffsetY * ch;
 
-        // Device frame position (aligned to hand's grip point)
-        const phoneRect = HAND_PHONE_RECT[bg] || { cx: 0.5, cy: 0.5, w: 0.45, h: 0.7 };
+        // Device frame position (aligned to woman's hand grip point)
+        const phoneRect = HAND_PHONE_RECT["hand_woman"] || { cx: 0.5, cy: 0.5, w: 0.45, h: 0.7 };
         const drawH = hh * phoneRect.h * scale;
         const drawW = drawH * dev.aspect;
         const phoneX = hx + hw * phoneRect.cx - drawW / 2;
         const phoneY = hy + hh * phoneRect.cy - drawH / 2;
 
-        if (HAND_TRANSPARENT[bg]) {
-          // Transparent hand: living room background → device frame → hand on top
-          // Use the living room photo as a natural home environment background
-          const livingImg = handImgRefs.current["hand_living"];
-          if (livingImg) {
-            // Draw living room background (cover the canvas)
-            const bgAspect = HAND_IMG_ASPECT;
-            let bw: number, bh: number;
-            if (canvasAspect > bgAspect) {
-              bw = cw;
-              bh = cw / bgAspect;
-            } else {
-              bh = ch;
-              bw = ch * bgAspect;
-            }
-            const bx = (cw - bw) / 2;
-            const by = (ch - bh) / 2;
-            ctx.drawImage(livingImg, bx, by, bw, bh);
-          } else {
-            ctx.fillStyle = "#f5f0eb";
-            ctx.fillRect(0, 0, cw, ch);
-          }
-          drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
-          ctx.drawImage(handImg, hx, hy, hw, hh);
+        // Background: use a heavily blurred version of the living room
+        // for a soft home environment (no visible hand/phone in background)
+        const bgImg = handImgRefs.current["hand_living"];
+        if (bgImg) {
+          ctx.save();
+          ctx.filter = `blur(${Math.round(cw * 0.035)}px)`;
+          const bgAspect = HAND_IMG_ASPECT;
+          let bw: number, bh: number;
+          if (canvasAspect > bgAspect) { bw = cw * 1.1; bh = bw / bgAspect; }
+          else { bh = ch * 1.1; bw = bh * bgAspect; }
+          ctx.drawImage(bgImg, (cw - bw) / 2, (ch - bh) / 2, bw, bh);
+          ctx.filter = "none";
+          ctx.restore();
         } else {
-          // Photo background: photo → device frame on top
-          ctx.drawImage(handImg, hx, hy, hw, hh);
-          drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+          ctx.fillStyle = "#f5f0eb";
+          ctx.fillRect(0, 0, cw, ch);
+        }
+
+        // Device frame with video
+        drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+
+        // Hand overlay on top (woman's hand for all hand modes)
+        const womanImg = handImgRefs.current["hand_woman"];
+        if (womanImg) {
+          // Use the woman's hand for all hand backgrounds
+          const whAspect = HAND_WOMAN_ASPECT;
+          let whw: number, whh: number;
+          if (canvasAspect > whAspect) { whw = cw; whh = cw / whAspect; }
+          else { whh = ch; whw = ch * whAspect; }
+          whw *= handZoom;
+          whh *= handZoom;
+          const whx = (cw - whw) / 2 + handOffsetX * cw;
+          const why = (ch - whh) / 2 + handOffsetY * ch;
+          ctx.drawImage(womanImg, whx, why, whw, whh);
         }
 
         ctx.restore();
