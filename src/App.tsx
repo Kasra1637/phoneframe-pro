@@ -1,13 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import handWomanImg from "@/assets/hand-woman.png";
-
-// Hand image aspect ratio
-const HAND_WOMAN_ASPECT = 832 / 1268;
-const HAND_BG_SRC: Record<string, string> = {
-  hand_woman: handWomanImg,
-};
-// Where the phone is in the woman's hand image (normalized 0-1 coordinates)
-const HAND_PHONE_RECT = { cx: 0.540, cy: 0.409, w: 0.341, h: 0.447 };
 
 export default Index;
 
@@ -47,15 +38,16 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "hand_woman";
+type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "float_dark" | "float_gradient";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
+  { id: "float_dark", label: "3D Float — Dark", preview: "linear-gradient(135deg,#0a0a0f,#1a1a2e)" },
+  { id: "float_gradient", label: "3D Float — Gradient", preview: "linear-gradient(135deg,#1e3a5f,#0ea5e9)" },
   { id: "white", label: "White", preview: "#ffffff" },
   { id: "black", label: "Black", preview: "#000000" },
   { id: "sunset", label: "Sunset", preview: "linear-gradient(135deg,#ff6a3d,#f9c846)" },
   { id: "ocean", label: "Ocean", preview: "linear-gradient(135deg,#0ea5e9,#1e3a8a)" },
   { id: "violet", label: "Violet", preview: "linear-gradient(135deg,#7c3aed,#ec4899)" },
-  { id: "hand_woman", label: "Hand hold (realistic)", preview: `url(${handWomanImg})` },
   { id: "custom", label: "Custom color", preview: "custom" },
 ];
 
@@ -105,9 +97,6 @@ function Index() {
   const [videoScale, setVideoScale] = useState(1);
   const [videoOffsetX, setVideoOffsetX] = useState(0);
   const [videoOffsetY, setVideoOffsetY] = useState(0);
-  const [handOffsetX, setHandOffsetX] = useState(0);
-  const [handOffsetY, setHandOffsetY] = useState(0);
-  const [handZoom, setHandZoom] = useState(1);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ url: string; name: string; size: number; mime: string } | null>(null);
@@ -121,18 +110,6 @@ function Index() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const handImgRefs = useRef<Record<string, HTMLImageElement>>({});
-
-
-  useEffect(() => {
-    Object.entries(HAND_BG_SRC).forEach(([key, src]) => {
-      if (handImgRefs.current[key]) return;
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.src = src;
-      img.onload = () => { handImgRefs.current[key] = img; };
-    });
-  }, []);
 
   const handleFile = (file: File) => {
     setError(null);
@@ -190,61 +167,72 @@ function Index() {
     const draw = () => {
       ctx.clearRect(0, 0, cw, ch);
 
-      const handImgActive = bg.startsWith("hand_") ? handImgRefs.current[bg] : null;
-      if (handImgActive) {
-        const handImg = handImgActive;
+      const isFloat = bg.startsWith("float_");
 
-        // Subtle multi-frequency handheld shake — baked into canvas for exports
+      if (isFloat) {
+        // === 3D FLOATING PHONE ===
+        // Phone floats with a subtle perspective tilt and continuous
+        // bobbing animation. Shadow underneath grounds it.
         const t = performance.now() / 1000;
-        const shakeAmt = Math.min(cw, ch) * 0.0025;
-        const sx = Math.sin(t * 1.8) * shakeAmt + Math.sin(t * 4.3) * shakeAmt * 0.4 + Math.sin(t * 7.9) * shakeAmt * 0.15;
-        const sy = Math.cos(t * 1.4) * shakeAmt + Math.cos(t * 5.1) * shakeAmt * 0.35 + Math.cos(t * 8.7) * shakeAmt * 0.12;
-        const sr = Math.sin(t * 0.9) * 0.002 + Math.sin(t * 2.7) * 0.0008;
 
-        ctx.save();
-        ctx.translate(cw / 2 + sx, ch / 2 + sy);
-        ctx.rotate(sr);
-        ctx.translate(-cw / 2, -ch / 2);
-
-        // === COMPOSITING ===
-        // Blurred scene background → device frame → woman's hand on top
-
-        const canvasAspect = cw / ch;
-        const imgAspect = HAND_WOMAN_ASPECT;
-        let hw: number, hh: number;
-        if (canvasAspect > imgAspect) {
-          hw = cw;
-          hh = cw / imgAspect;
+        // Background
+        if (bg === "float_dark") {
+          const g = ctx.createRadialGradient(cw * 0.5, ch * 0.4, 0, cw * 0.5, ch * 0.5, cw * 0.7);
+          g.addColorStop(0, "#1a1a2e");
+          g.addColorStop(1, "#0a0a0f");
+          ctx.fillStyle = g;
         } else {
-          hh = ch;
-          hw = ch * imgAspect;
+          const g = ctx.createLinearGradient(0, 0, cw, ch);
+          g.addColorStop(0, "#0c2d48");
+          g.addColorStop(0.5, "#1a4a6e");
+          g.addColorStop(1, "#0ea5e9");
+          ctx.fillStyle = g;
         }
-        hw *= handZoom;
-        hh *= handZoom;
-        const hx = (cw - hw) / 2 + handOffsetX * cw;
-        const hy = (ch - hh) / 2 + handOffsetY * ch;
-
-        // Device frame position (aligned to woman's hand grip point)
-        const phoneRect = HAND_PHONE_RECT;
-        const drawH = hh * phoneRect.h * scale;
-        const drawW = drawH * dev.aspect;
-        const phoneX = hx + hw * phoneRect.cx - drawW / 2;
-        const phoneY = hy + hh * phoneRect.cy - drawH / 2;
-
-        // Background: clean warm gradient (no photo — avoids any visible hands/phones)
-        const bgGrad = ctx.createRadialGradient(cw * 0.3, ch * 0.3, 0, cw * 0.5, ch * 0.5, cw * 0.8);
-        bgGrad.addColorStop(0, "#f5e6d0");
-        bgGrad.addColorStop(0.5, "#e8d5be");
-        bgGrad.addColorStop(1, "#c4a882");
-        ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, cw, ch);
 
-        // Device frame with video
-        drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+        // Phone dimensions
+        const fit = Math.min(cw / phoneW, ch / phoneH) * scale * 0.85;
+        const drawW = phoneW * fit;
+        const drawH = phoneH * fit;
+        const cx2 = cw / 2;
+        const cy2 = ch / 2;
 
-        // Woman's hand on top
-        ctx.drawImage(handImg, hx, hy, hw, hh);
+        // Float animation: gentle bob + subtle tilt
+        const bobY = Math.sin(t * 1.2) * (ch * 0.012) + Math.sin(t * 2.8) * (ch * 0.004);
+        const bobX = Math.sin(t * 0.8) * (cw * 0.003);
+        const tiltX = Math.sin(t * 0.7) * 0.03;  // slight X rotation (perspective)
+        const tiltY = Math.sin(t * 1.1) * 0.02;  // slight Y rotation
+        const tiltZ = Math.sin(t * 0.5) * 0.008; // very subtle Z rotation
 
+        // Draw shadow (ellipse below the phone, offset and blurred)
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.beginPath();
+        const shadowY = cy2 + drawH * 0.52 + bobY * 0.3;
+        const shadowW = drawW * 0.7 * (1 - Math.abs(tiltX) * 2);
+        const shadowH = drawH * 0.06;
+        ctx.ellipse(cx2 + bobX, shadowY, shadowW, shadowH, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "#000";
+        ctx.filter = `blur(${Math.round(drawW * 0.08)}px)`;
+        ctx.fill();
+        ctx.filter = "none";
+        ctx.globalAlpha = 1;
+        ctx.restore();
+
+        // Apply 3D perspective transform via canvas transforms
+        // Since canvas doesn't have real 3D, we simulate with skew + scale
+        ctx.save();
+        ctx.translate(cx2 + bobX, cy2 + bobY);
+        ctx.rotate(tiltZ);
+
+        // Simulate perspective tilt by applying slight vertical scale variation
+        // and horizontal skew based on the tilt angles
+        const perspScale = 1 - Math.abs(tiltX) * 0.5;
+        ctx.scale(1, perspScale);
+        ctx.transform(1, tiltX * 0.8, tiltY * 0.6, 1, 0, 0);
+
+        ctx.translate(-drawW / 2, -drawH / 2);
+        drawPhone(ctx, 0, 0, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
         ctx.restore();
 
       } else {
@@ -263,7 +251,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY, handOffsetX, handOffsetY, handZoom]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY]);
 
 
   const exportVideo = async () => {
@@ -494,9 +482,7 @@ function Index() {
                         ? { backgroundImage: "linear-gradient(45deg,#666 25%,transparent 25%),linear-gradient(-45deg,#666 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#666 75%),linear-gradient(-45deg,transparent 75%,#666 75%)", backgroundSize: "8px 8px", backgroundPosition: "0 0,0 4px,4px -4px,-4px 0", backgroundColor: "#222" }
                         : b.preview === "custom"
                           ? { background: customColor }
-                          : b.id.startsWith("hand_")
-                            ? { backgroundImage: b.preview, backgroundSize: "cover", backgroundPosition: "center" }
-                            : { background: b.preview }
+                          : { background: b.preview }
                     }
                   />
                 ))}
@@ -506,30 +492,6 @@ function Index() {
               )}
             </Section>
 
-
-            {/* Hand Position (only when hand bg selected) */}
-            {bg.startsWith("hand_") && (
-            <Section title="Hand position">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-white/50">Pan &amp; zoom</span>
-                  <button type="button" className="text-[10px] text-white/50 hover:text-white" onClick={() => { setHandOffsetX(0); setHandOffsetY(0); setHandZoom(1); }}>Reset</button>
-                </div>
-                <div>
-                  <label className="text-[10px] text-white/40">H: {(handOffsetX * 100).toFixed(0)}%</label>
-                  <input type="range" min={-0.8} max={0.8} step={0.01} value={handOffsetX} onChange={(e) => setHandOffsetX(Number(e.target.value))} className="w-full accent-white h-1" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-white/40">V: {(handOffsetY * 100).toFixed(0)}%</label>
-                  <input type="range" min={-0.8} max={0.8} step={0.01} value={handOffsetY} onChange={(e) => setHandOffsetY(Number(e.target.value))} className="w-full accent-white h-1" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-white/40">Zoom: {handZoom.toFixed(2)}x</label>
-                  <input type="range" min={0.5} max={2.5} step={0.01} value={handZoom} onChange={(e) => setHandZoom(Number(e.target.value))} className="w-full accent-white h-1" />
-                </div>
-              </div>
-            </Section>
-            )}
 
             {/* Phone Size */}
             <Section title={`Phone size (${Math.round(scale * 100)}%)`}>
@@ -633,21 +595,13 @@ function Index() {
                     const rect = el.getBoundingClientRect();
                     const startX = e.clientX;
                     const startY = e.clientY;
-                    const handMode = bg.startsWith("hand_");
-                    const startOffX = handMode ? handOffsetX : videoOffsetX;
-                    const startOffY = handMode ? handOffsetY : videoOffsetY;
+                    const startOffX = videoOffsetX;
+                    const startOffY = videoOffsetY;
                     const move = (ev: PointerEvent) => {
-                      if (handMode) {
-                        const dx = (ev.clientX - startX) / rect.width;
-                        const dy = (ev.clientY - startY) / rect.height;
-                        setHandOffsetX(Math.max(-1, Math.min(1, +(startOffX + dx).toFixed(3))));
-                        setHandOffsetY(Math.max(-1, Math.min(1, +(startOffY + dy).toFixed(3))));
-                      } else {
-                        const dx = ((ev.clientX - startX) / rect.width) * 200;
-                        const dy = ((ev.clientY - startY) / rect.height) * 200;
-                        setVideoOffsetX(Math.max(-100, Math.min(100, Math.round(startOffX + dx))));
-                        setVideoOffsetY(Math.max(-100, Math.min(100, Math.round(startOffY + dy))));
-                      }
+                      const dx = ((ev.clientX - startX) / rect.width) * 200;
+                      const dy = ((ev.clientY - startY) / rect.height) * 200;
+                      setVideoOffsetX(Math.max(-100, Math.min(100, Math.round(startOffX + dx))));
+                      setVideoOffsetY(Math.max(-100, Math.min(100, Math.round(startOffY + dy))));
                     };
                     const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
                     window.addEventListener("pointermove", move);
@@ -655,8 +609,7 @@ function Index() {
                   }}
                   onWheel={(e) => {
                     e.preventDefault();
-                    if (bg.startsWith("hand_")) setHandZoom((z) => Math.max(0.5, Math.min(2.5, +(z - e.deltaY * 0.002).toFixed(2))));
-                    else setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
+                    setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
                   }}
                 />
               ) : (
