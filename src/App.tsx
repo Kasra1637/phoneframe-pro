@@ -38,9 +38,10 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "float_dark" | "float_gradient";
+type BgId = "transparent" | "white" | "black" | "sunset" | "ocean" | "violet" | "custom" | "float_dark" | "float_gradient" | "float_premium";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
+  { id: "float_premium", label: "3D Float — Premium", preview: "linear-gradient(135deg,#08080f,#12121e,#0a0a14)" },
   { id: "float_dark", label: "3D Float — Dark", preview: "linear-gradient(135deg,#0a0a0f,#1a1a2e)" },
   { id: "float_gradient", label: "3D Float — Gradient", preview: "linear-gradient(135deg,#1e3a5f,#0ea5e9)" },
   { id: "white", label: "White", preview: "#ffffff" },
@@ -89,7 +90,7 @@ function Index() {
   const [videoMeta, setVideoMeta] = useState<{ w: number; h: number; d: number } | null>(null);
   const [device, setDevice] = useState<DeviceId>("s24");
   const [preset, setPreset] = useState<PresetId>("tiktok");
-  const [bg, setBg] = useState<BgId>("float_dark");
+  const [bg, setBg] = useState<BgId>("float_premium");
   const [customColor, setCustomColor] = useState("#0b0b0f");
   const [scale, setScale] = useState(0.82);
   const [mockupStretchY, setMockupStretchY] = useState(1);
@@ -176,7 +177,11 @@ function Index() {
         const t = performance.now() / 1000;
 
         // Background
-        if (bg === "float_dark") {
+        if (bg === "float_premium") {
+          // Deep black base
+          ctx.fillStyle = "#050508";
+          ctx.fillRect(0, 0, cw, ch);
+        } else if (bg === "float_dark") {
           const g = ctx.createRadialGradient(cw * 0.5, ch * 0.4, 0, cw * 0.5, ch * 0.5, cw * 0.7);
           g.addColorStop(0, "#1a1a2e");
           g.addColorStop(1, "#0a0a0f");
@@ -203,6 +208,65 @@ function Index() {
         const tiltX = Math.sin(t * 0.7) * 0.03;  // slight X rotation (perspective)
         const tiltY = Math.sin(t * 1.1) * 0.02;  // slight Y rotation
         const tiltZ = Math.sin(t * 0.5) * 0.008; // very subtle Z rotation
+
+        // === PREMIUM: Animated light rays + glow + vignette ===
+        if (bg === "float_premium") {
+          // Soft radial glow behind the phone — synced to bobbing
+          const glowX = cx2 + bobX * 1.5;
+          const glowY = cy2 + bobY * 1.2;
+          const glowR = Math.max(drawW, drawH) * 0.9;
+          ctx.save();
+          const glow = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR);
+          glow.addColorStop(0, "rgba(60, 80, 140, 0.18)");
+          glow.addColorStop(0.3, "rgba(40, 55, 100, 0.10)");
+          glow.addColorStop(0.6, "rgba(20, 30, 60, 0.05)");
+          glow.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = glow;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.restore();
+
+          // Animated light rays — slow rotating beams from behind the phone
+          ctx.save();
+          ctx.globalAlpha = 0.06;
+          const rayCount = 8;
+          const rayBaseAngle = t * 0.15; // very slow rotation
+          for (let i = 0; i < rayCount; i++) {
+            const angle = rayBaseAngle + (i / rayCount) * Math.PI * 2;
+            const rayLen = Math.max(cw, ch) * 0.8;
+            const rayWidth = 0.08 + Math.sin(t * 0.3 + i * 1.7) * 0.03; // subtle breathing
+            ctx.beginPath();
+            ctx.moveTo(glowX, glowY);
+            ctx.lineTo(
+              glowX + Math.cos(angle - rayWidth) * rayLen,
+              glowY + Math.sin(angle - rayWidth) * rayLen
+            );
+            ctx.lineTo(
+              glowX + Math.cos(angle + rayWidth) * rayLen,
+              glowY + Math.sin(angle + rayWidth) * rayLen
+            );
+            ctx.closePath();
+            const rayGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, rayLen);
+            rayGrad.addColorStop(0, "rgba(100, 130, 200, 1)");
+            rayGrad.addColorStop(0.4, "rgba(60, 80, 140, 0.5)");
+            rayGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+            ctx.fillStyle = rayGrad;
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Secondary warm glow pulse (very subtle, adds life)
+          ctx.save();
+          const pulseAlpha = 0.04 + Math.sin(t * 0.6) * 0.02;
+          ctx.globalAlpha = pulseAlpha;
+          const warmGlow = ctx.createRadialGradient(glowX, glowY - drawH * 0.1, 0, glowX, glowY, glowR * 0.6);
+          warmGlow.addColorStop(0, "rgba(180, 140, 255, 1)");
+          warmGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = warmGlow;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
 
         // Draw shadow (ellipse below the phone, offset and blurred)
         ctx.save();
@@ -234,6 +298,22 @@ function Index() {
         ctx.translate(-drawW / 2, -drawH / 2);
         drawPhone(ctx, 0, 0, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
         ctx.restore();
+
+        // === PREMIUM: Vignette overlay (after phone, darkens edges) ===
+        if (bg === "float_premium") {
+          ctx.save();
+          const vignette = ctx.createRadialGradient(
+            cx2, cy2, Math.min(cw, ch) * 0.25,
+            cx2, cy2, Math.max(cw, ch) * 0.7
+          );
+          vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+          vignette.addColorStop(0.6, "rgba(0, 0, 0, 0)");
+          vignette.addColorStop(0.85, "rgba(0, 0, 0, 0.3)");
+          vignette.addColorStop(1, "rgba(0, 0, 0, 0.65)");
+          ctx.fillStyle = vignette;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.restore();
+        }
 
       } else {
         paintBackground(ctx, cw, ch, bg, customColor);
