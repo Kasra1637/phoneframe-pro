@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import handHoldLivingImg from "@/assets/hand-hold-livingroom.jpg";
 import handWomanImg from "@/assets/hand-woman.png";
 
-// Hand image aspect ratios
-const HAND_IMG_ASPECT = 848 / 1264;
+// Hand image aspect ratio
 const HAND_WOMAN_ASPECT = 832 / 1268;
 const HAND_BG_SRC: Record<string, string> = {
   hand_woman: handWomanImg,
 };
-// Background scene image (used as blurred environment behind the hand)
-const HAND_BG_SCENE = handHoldLivingImg;
 // Where the phone is in the woman's hand image (normalized 0-1 coordinates)
 const HAND_PHONE_RECT = { cx: 0.540, cy: 0.409, w: 0.341, h: 0.447 };
 
@@ -126,7 +122,6 @@ function Index() {
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const handImgRefs = useRef<Record<string, HTMLImageElement>>({});
-  const sceneImgRef = useRef<HTMLImageElement | null>(null);
 
 
   useEffect(() => {
@@ -137,13 +132,6 @@ function Index() {
       img.src = src;
       img.onload = () => { handImgRefs.current[key] = img; };
     });
-    // Load background scene image
-    if (!sceneImgRef.current) {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.src = HAND_BG_SCENE;
-      img.onload = () => { sceneImgRef.current = img; };
-    }
   }, []);
 
   const handleFile = (file: File) => {
@@ -243,22 +231,13 @@ function Index() {
         const phoneX = hx + hw * phoneRect.cx - drawW / 2;
         const phoneY = hy + hh * phoneRect.cy - drawH / 2;
 
-        // Background: heavily blurred living room scene
-        const bgImg = sceneImgRef.current;
-        if (bgImg) {
-          ctx.save();
-          ctx.filter = `blur(${Math.round(cw * 0.035)}px)`;
-          const bgAspect = HAND_IMG_ASPECT;
-          let bw: number, bh: number;
-          if (canvasAspect > bgAspect) { bw = cw * 1.1; bh = bw / bgAspect; }
-          else { bh = ch * 1.1; bw = bh * bgAspect; }
-          ctx.drawImage(bgImg, (cw - bw) / 2, (ch - bh) / 2, bw, bh);
-          ctx.filter = "none";
-          ctx.restore();
-        } else {
-          ctx.fillStyle = "#f5f0eb";
-          ctx.fillRect(0, 0, cw, ch);
-        }
+        // Background: clean warm gradient (no photo — avoids any visible hands/phones)
+        const bgGrad = ctx.createRadialGradient(cw * 0.3, ch * 0.3, 0, cw * 0.5, ch * 0.5, cw * 0.8);
+        bgGrad.addColorStop(0, "#f5e6d0");
+        bgGrad.addColorStop(0.5, "#e8d5be");
+        bgGrad.addColorStop(1, "#c4a882");
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, cw, ch);
 
         // Device frame with video
         drawPhone(ctx, phoneX, phoneY, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
