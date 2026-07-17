@@ -89,6 +89,7 @@ function Index() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoMeta, setVideoMeta] = useState<{ w: number; h: number; d: number } | null>(null);
   const [device, setDevice] = useState<DeviceId>("s24");
+  const [frameColor, setFrameColor] = useState<"black" | "white">("black");
   const [preset, setPreset] = useState<PresetId>("tiktok");
   const [bg, setBg] = useState<BgId>("float_premium");
   const [customColor, setCustomColor] = useState("#0b0b0f");
@@ -296,7 +297,7 @@ function Index() {
         ctx.transform(1, tiltX * 0.8, tiltY * 0.6, 1, 0, 0);
 
         ctx.translate(-drawW / 2, -drawH / 2);
-        drawPhone(ctx, 0, 0, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+        drawPhone(ctx, 0, 0, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor);
         ctx.restore();
 
         // === PREMIUM: Vignette overlay (after phone, darkens edges) ===
@@ -322,7 +323,7 @@ function Index() {
         const drawH = phoneH * fit;
         const x = (cw - drawW) / 2;
         const y = (ch - drawH) / 2;
-        drawPhone(ctx, x, y, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY);
+        drawPhone(ctx, x, y, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor);
       }
       rafRef.current = requestAnimationFrame(draw);
     };
@@ -331,7 +332,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, customColor, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor]);
 
 
   const exportVideo = async () => {
@@ -527,6 +528,21 @@ function Index() {
                   <option key={d.id} value={d.id} className="bg-[#1a1a22] text-white">{d.label}</option>
                 ))}
               </select>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-[11px] text-white/50">Frame color:</span>
+                <button
+                  type="button"
+                  onClick={() => setFrameColor("black")}
+                  className={`h-6 w-6 rounded-full border-2 bg-[#0d0d10] transition ${frameColor === "black" ? "border-white ring-1 ring-white" : "border-white/20 hover:border-white/50"}`}
+                  title="Black"
+                />
+                <button
+                  type="button"
+                  onClick={() => setFrameColor("white")}
+                  className={`h-6 w-6 rounded-full border-2 bg-[#f0f0f2] transition ${frameColor === "white" ? "border-white ring-1 ring-white" : "border-white/20 hover:border-white/50"}`}
+                  title="White"
+                />
+              </div>
             </Section>
 
 
@@ -739,30 +755,35 @@ function drawPhone(
   videoScale: number,
   videoOffsetX: number,
   videoOffsetY: number,
+  frameColor: "black" | "white" = "black",
 ) {
   const radius = w * dev.radiusRatio;
   const bezel = w * dev.bezelRatio;
+
+  // Override body and rail colors when white frame is selected
+  const bodyColor = frameColor === "white" ? "#f0f0f2" : dev.body;
+  const railColor = frameColor === "white" ? "#d8d8dc" : dev.rail;
 
   ctx.save();
 
   // Shadow
   ctx.save();
   roundRect(ctx, x, y, w, h, radius);
-  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowColor = frameColor === "white" ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.55)";
   ctx.shadowBlur = w * 0.10;
   ctx.shadowOffsetY = w * 0.04;
-  ctx.fillStyle = "#000";
+  ctx.fillStyle = frameColor === "white" ? "#e0e0e4" : "#000";
   ctx.fill();
   ctx.restore();
 
 
   // Outer rail
   const railGrad = ctx.createLinearGradient(x, y, x + w, y);
-  railGrad.addColorStop(0, shade(dev.rail, -25));
-  railGrad.addColorStop(0.15, dev.rail);
-  railGrad.addColorStop(0.5, shade(dev.rail, 20));
-  railGrad.addColorStop(0.85, dev.rail);
-  railGrad.addColorStop(1, shade(dev.rail, -25));
+  railGrad.addColorStop(0, shade(railColor, -25));
+  railGrad.addColorStop(0.15, railColor);
+  railGrad.addColorStop(0.5, shade(railColor, 20));
+  railGrad.addColorStop(0.85, railColor);
+  railGrad.addColorStop(1, shade(railColor, -25));
   roundRect(ctx, x, y, w, h, radius);
   ctx.fillStyle = railGrad;
   ctx.fill();
@@ -774,7 +795,7 @@ function drawPhone(
   const bh = h - w * 0.024;
   const br = Math.max(0, radius - w * 0.012);
   roundRect(ctx, bx, by, bw, bh, br);
-  ctx.fillStyle = dev.body;
+  ctx.fillStyle = bodyColor;
   ctx.fill();
 
   // Highlight
@@ -789,7 +810,7 @@ function drawPhone(
   ctx.restore();
 
   // Buttons
-  ctx.fillStyle = shade(dev.rail, -10);
+  ctx.fillStyle = shade(railColor, -10);
   ctx.fillRect(x + w - w * 0.008, y + h * 0.18, w * 0.012, h * 0.06);
   ctx.fillRect(x - w * 0.004, y + h * 0.16, w * 0.012, h * 0.05);
   ctx.fillRect(x - w * 0.004, y + h * 0.235, w * 0.012, w * 0.06);
