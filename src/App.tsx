@@ -41,12 +41,12 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
 type BgId = "transparent" | "float_lavender" | "float_blush" | "float_sage" | "float_cloud" | "float_peach" | "float_mist";
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
-  { id: "float_lavender", label: "Soft Lavender", preview: "linear-gradient(135deg,#e8e0f0,#d4c8e8)" },
-  { id: "float_blush", label: "Warm Blush", preview: "linear-gradient(135deg,#f5e6e8,#ecd4d8)" },
-  { id: "float_sage", label: "Calm Sage", preview: "linear-gradient(135deg,#e2ebe6,#cdddd4)" },
-  { id: "float_cloud", label: "Soft Cloud", preview: "linear-gradient(135deg,#edf0f5,#dde3ec)" },
-  { id: "float_peach", label: "Gentle Peach", preview: "linear-gradient(135deg,#faeee6,#f0ddd0)" },
-  { id: "float_mist", label: "Morning Mist", preview: "linear-gradient(135deg,#e6ecf0,#d8e0e8)" },
+  { id: "float_lavender", label: "Deep Lavender", preview: "linear-gradient(135deg,#0c0814,#14101e)" },
+  { id: "float_blush", label: "Deep Blush", preview: "linear-gradient(135deg,#140a0c,#1e1012)" },
+  { id: "float_sage", label: "Deep Sage", preview: "linear-gradient(135deg,#080e0a,#0e1810)" },
+  { id: "float_cloud", label: "Deep Cloud", preview: "linear-gradient(135deg,#080a10,#0e1218)" },
+  { id: "float_peach", label: "Deep Peach", preview: "linear-gradient(135deg,#140c08,#1e140e)" },
+  { id: "float_mist", label: "Deep Mist", preview: "linear-gradient(135deg,#08090e,#0e1016)" },
 ];
 
 
@@ -173,21 +173,21 @@ function Index() {
         // bobbing animation. Shadow underneath grounds it.
         const t = performance.now() / 1000;
 
-        // Background — soft gradient fill based on selected palette
+        // Background — deep dark gradient with visible animated glow
         const SOFT_COLORS: Record<string, { bg1: string; bg2: string; glow: string; accent: string }> = {
-          float_lavender: { bg1: "#ede6f5", bg2: "#d8cce8", glow: "rgba(150, 120, 200, 0.12)", accent: "rgba(130, 100, 180, 0.06)" },
-          float_blush:    { bg1: "#f7eaec", bg2: "#efd8dc", glow: "rgba(200, 120, 140, 0.12)", accent: "rgba(180, 100, 120, 0.06)" },
-          float_sage:     { bg1: "#e6ede8", bg2: "#d0e0d6", glow: "rgba(100, 160, 120, 0.12)", accent: "rgba(80, 140, 100, 0.06)" },
-          float_cloud:    { bg1: "#eef2f7", bg2: "#dfe6f0", glow: "rgba(120, 150, 200, 0.10)", accent: "rgba(100, 130, 180, 0.05)" },
-          float_peach:    { bg1: "#fbf0e8", bg2: "#f2e0d2", glow: "rgba(200, 140, 100, 0.12)", accent: "rgba(180, 120, 80, 0.06)" },
-          float_mist:     { bg1: "#e8eef2", bg2: "#dae4ec", glow: "rgba(100, 140, 180, 0.10)", accent: "rgba(80, 120, 160, 0.06)" },
+          float_lavender: { bg1: "#0c0814", bg2: "#14101e", glow: "rgba(150, 100, 220, 0.25)", accent: "rgba(120, 80, 200, 0.12)" },
+          float_blush:    { bg1: "#140a0c", bg2: "#1e1012", glow: "rgba(220, 100, 140, 0.25)", accent: "rgba(200, 80, 120, 0.12)" },
+          float_sage:     { bg1: "#080e0a", bg2: "#0e1810", glow: "rgba(80, 180, 120, 0.22)", accent: "rgba(60, 160, 100, 0.10)" },
+          float_cloud:    { bg1: "#080a10", bg2: "#0e1218", glow: "rgba(100, 150, 220, 0.22)", accent: "rgba(80, 130, 200, 0.10)" },
+          float_peach:    { bg1: "#140c08", bg2: "#1e140e", glow: "rgba(220, 140, 80, 0.25)", accent: "rgba(200, 120, 60, 0.12)" },
+          float_mist:     { bg1: "#08090e", bg2: "#0e1016", glow: "rgba(80, 140, 200, 0.22)", accent: "rgba(60, 120, 180, 0.10)" },
         };
         const palette = SOFT_COLORS[bg] || SOFT_COLORS.float_lavender;
 
-        // Soft gradient background
-        const bgGrad = ctx.createLinearGradient(0, 0, cw * 0.3, ch);
-        bgGrad.addColorStop(0, palette.bg1);
-        bgGrad.addColorStop(1, palette.bg2);
+        // Deep dark gradient background
+        const bgGrad = ctx.createRadialGradient(cw * 0.5, ch * 0.4, 0, cw * 0.5, ch * 0.5, cw * 0.7);
+        bgGrad.addColorStop(0, palette.bg2);
+        bgGrad.addColorStop(1, palette.bg1);
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, cw, ch);
 
@@ -205,16 +205,16 @@ function Index() {
         const tiltY = Math.sin(t * 1.1) * 0.02;
         const tiltZ = Math.sin(t * 0.5) * 0.008;
 
-        // Soft breathing glow behind phone — synced to bob, color matches palette
+        // Breathing glow behind phone — synced to bob, visible on dark base
         ctx.save();
-        const glowAlpha = 0.06 + Math.sin(t * 0.4) * 0.02;
+        const glowAlpha = 0.15 + Math.sin(t * 0.4) * 0.06;
         ctx.globalAlpha = glowAlpha;
         const glowX = cx2 + bobX * 1.2;
         const glowY = cy2 + bobY * 0.8;
-        const glowR = Math.max(drawW, drawH) * 0.8;
+        const glowR = Math.max(drawW, drawH) * 0.85;
         const glowGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR);
         glowGrad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
-        glowGrad.addColorStop(0.5, palette.glow);
+        glowGrad.addColorStop(0.4, palette.glow);
         glowGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
         ctx.fillStyle = glowGrad;
         ctx.fillRect(0, 0, cw, ch);
@@ -223,7 +223,7 @@ function Index() {
 
         // Secondary accent glow (slower breath, offset)
         ctx.save();
-        const accentAlpha = 0.04 + Math.sin(t * 0.3 + 1) * 0.015;
+        const accentAlpha = 0.08 + Math.sin(t * 0.3 + 1) * 0.03;
         ctx.globalAlpha = accentAlpha;
         const accentGrad = ctx.createRadialGradient(glowX, glowY + drawH * 0.15, 0, glowX, glowY + drawH * 0.15, glowR * 0.5);
         accentGrad.addColorStop(0, palette.accent.replace(/[\d.]+\)$/, "1)"));
@@ -264,15 +264,16 @@ function Index() {
         drawPhone(ctx, 0, 0, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor);
         ctx.restore();
 
-        // Soft vignette overlay (subtle, draws eye to center)
+        // Vignette overlay (draws eye to center)
         ctx.save();
         const vignette = ctx.createRadialGradient(
           cx2, cy2, Math.min(cw, ch) * 0.3,
           cx2, cy2, Math.max(cw, ch) * 0.7
         );
         vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
-        vignette.addColorStop(0.7, "rgba(0, 0, 0, 0)");
-        vignette.addColorStop(1, "rgba(0, 0, 0, 0.08)");
+        vignette.addColorStop(0.6, "rgba(0, 0, 0, 0)");
+        vignette.addColorStop(0.85, "rgba(0, 0, 0, 0.25)");
+        vignette.addColorStop(1, "rgba(0, 0, 0, 0.55)");
         ctx.fillStyle = vignette;
         ctx.fillRect(0, 0, cw, ch);
         ctx.restore();
