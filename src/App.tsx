@@ -39,7 +39,7 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
 ];
 
 type BgId = "transparent" | "lavender" | "blush" | "sage" | "cloud" | "peach" | "mist" | "pink" | "purple" | "blue";
-type AnimId = "float" | "pulse" | "rays" | "aurora";
+type AnimId = "float" | "pulse" | "rays" | "aurora" | "orbit" | "breathe";
 
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
@@ -59,6 +59,8 @@ const ANIMATIONS: { id: AnimId; label: string }[] = [
   { id: "pulse", label: "Breathing Pulse" },
   { id: "rays", label: "Light Rays" },
   { id: "aurora", label: "Aurora Waves" },
+  { id: "orbit", label: "Orbiting Ring" },
+  { id: "breathe", label: "Deep Breathe" },
 ];
 
 const COLOR_PALETTES: Record<string, { bg1: string; bg2: string; glow: string; accent: string }> = {
@@ -221,28 +223,139 @@ function Index() {
         const glowY = cy2 + bobY * 0.8;
         const glowR = Math.max(drawW, drawH) * 0.85;
 
-        // === ANIMATION: Breathing Pulse (default glow) ===
-        if (anim === "pulse" || anim === "float") {
+        // === ANIMATION: Gentle Float — large visible glow ===
+        if (anim === "float") {
           ctx.save();
-          const glowAlpha = 0.15 + Math.sin(t * 0.4) * 0.06;
+          const glowAlpha = 0.30 + Math.sin(t * 0.4) * 0.10;
           ctx.globalAlpha = glowAlpha;
-          const glowGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR);
+          const glowGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR * 1.1);
           glowGrad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
-          glowGrad.addColorStop(0.4, palette.glow);
+          glowGrad.addColorStop(0.3, palette.glow.replace(/[\d.]+\)$/, "0.7)"));
+          glowGrad.addColorStop(0.6, palette.glow);
           glowGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
           ctx.fillStyle = glowGrad;
           ctx.fillRect(0, 0, cw, ch);
           ctx.globalAlpha = 1;
           ctx.restore();
+        }
 
-          // Secondary accent
+        // === ANIMATION: Breathing Pulse — dramatic expanding/contracting ===
+        if (anim === "pulse") {
+          const pulsePhase = Math.sin(t * 0.5);
+          const pulseR = glowR * (0.7 + pulsePhase * 0.3);
+          const pulseAlpha = 0.25 + pulsePhase * 0.12;
+
           ctx.save();
-          const accentAlpha = 0.08 + Math.sin(t * 0.3 + 1) * 0.03;
-          ctx.globalAlpha = accentAlpha;
-          const accentGrad = ctx.createRadialGradient(glowX, glowY + drawH * 0.15, 0, glowX, glowY + drawH * 0.15, glowR * 0.5);
-          accentGrad.addColorStop(0, palette.accent.replace(/[\d.]+\)$/, "1)"));
-          accentGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
-          ctx.fillStyle = accentGrad;
+          ctx.globalAlpha = pulseAlpha;
+          const pulseGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, pulseR);
+          pulseGrad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
+          pulseGrad.addColorStop(0.35, palette.glow.replace(/[\d.]+\)$/, "0.6)"));
+          pulseGrad.addColorStop(0.7, palette.accent.replace(/[\d.]+\)$/, "0.3)"));
+          pulseGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = pulseGrad;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Outer ring pulse
+          ctx.save();
+          ctx.globalAlpha = 0.08 + pulsePhase * 0.04;
+          ctx.beginPath();
+          ctx.arc(glowX, glowY, pulseR * 1.1, 0, Math.PI * 2);
+          ctx.lineWidth = drawW * 0.02;
+          ctx.strokeStyle = palette.glow.replace(/[\d.]+\)$/, "0.5)");
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
+
+        // === ANIMATION: Orbiting Ring — glowing ring orbits behind the phone ===
+        if (anim === "orbit") {
+          const orbitAngle = t * 0.6;
+          const orbitR = glowR * 0.65;
+
+          // Draw the orbit path (faint ring)
+          ctx.save();
+          ctx.globalAlpha = 0.08;
+          ctx.beginPath();
+          ctx.ellipse(cx2, cy2, orbitR, orbitR * 0.35, 0.2, 0, Math.PI * 2);
+          ctx.lineWidth = drawW * 0.015;
+          ctx.strokeStyle = palette.glow.replace(/[\d.]+\)$/, "0.6)");
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Orbiting bright dot
+          const dotX = cx2 + Math.cos(orbitAngle) * orbitR;
+          const dotY = cy2 + Math.sin(orbitAngle) * orbitR * 0.35;
+          const dotR = drawW * 0.06;
+
+          ctx.save();
+          ctx.globalAlpha = 0.4;
+          const dotGrad = ctx.createRadialGradient(dotX, dotY, 0, dotX, dotY, dotR * 3);
+          dotGrad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
+          dotGrad.addColorStop(0.3, palette.glow.replace(/[\d.]+\)$/, "0.5)"));
+          dotGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = dotGrad;
+          ctx.fillRect(dotX - dotR * 3, dotY - dotR * 3, dotR * 6, dotR * 6);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Second dot (opposite side, dimmer)
+          const dot2X = cx2 + Math.cos(orbitAngle + Math.PI) * orbitR;
+          const dot2Y = cy2 + Math.sin(orbitAngle + Math.PI) * orbitR * 0.35;
+          ctx.save();
+          ctx.globalAlpha = 0.2;
+          const dot2Grad = ctx.createRadialGradient(dot2X, dot2Y, 0, dot2X, dot2Y, dotR * 2);
+          dot2Grad.addColorStop(0, palette.accent.replace(/[\d.]+\)$/, "1)"));
+          dot2Grad.addColorStop(0.4, palette.accent.replace(/[\d.]+\)$/, "0.4)"));
+          dot2Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = dot2Grad;
+          ctx.fillRect(dot2X - dotR * 2, dot2Y - dotR * 2, dotR * 4, dotR * 4);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Center ambient glow
+          ctx.save();
+          ctx.globalAlpha = 0.12;
+          const centerGlow = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR * 0.5);
+          centerGlow.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
+          centerGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = centerGlow;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
+
+        // === ANIMATION: Deep Breathe — large slow-expanding concentric rings ===
+        if (anim === "breathe") {
+          const breathPhase = t * 0.3;
+
+          for (let i = 0; i < 3; i++) {
+            const ringPhase = (breathPhase + i * 0.33) % 1;
+            const ringR = glowR * (0.3 + ringPhase * 0.9);
+            const ringAlpha = 0.2 * (1 - ringPhase);
+
+            ctx.save();
+            ctx.globalAlpha = ringAlpha;
+            ctx.beginPath();
+            ctx.arc(glowX, glowY, ringR, 0, Math.PI * 2);
+            ctx.lineWidth = drawW * (0.04 - ringPhase * 0.03);
+            ctx.strokeStyle = palette.glow.replace(/[\d.]+\)$/, "1)");
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+
+          // Center glow
+          ctx.save();
+          const bAlpha = 0.18 + Math.sin(t * 0.5) * 0.08;
+          ctx.globalAlpha = bAlpha;
+          const bGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR * 0.5);
+          bGrad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
+          bGrad.addColorStop(0.5, palette.glow.replace(/[\d.]+\)$/, "0.4)"));
+          bGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = bGrad;
           ctx.fillRect(0, 0, cw, ch);
           ctx.globalAlpha = 1;
           ctx.restore();
