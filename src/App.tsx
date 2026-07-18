@@ -38,16 +38,14 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "lavender" | "blush" | "sage" | "cloud" | "peach" | "mist" | "pink" | "purple" | "blue";
+type BgId = "transparent" | "lavender" | "sage" | "cloud" | "mist" | "pink" | "purple" | "blue";
 type AnimId = "float" | "pulse" | "rays" | "aurora" | "orbit" | "breathe";
 
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
   { id: "lavender", label: "Lavender", preview: "linear-gradient(135deg,#0c0814,#14101e)" },
-  { id: "blush", label: "Blush", preview: "linear-gradient(135deg,#140a0c,#1e1012)" },
   { id: "sage", label: "Sage", preview: "linear-gradient(135deg,#080e0a,#0e1810)" },
   { id: "cloud", label: "Cloud", preview: "linear-gradient(135deg,#080a10,#0e1218)" },
-  { id: "peach", label: "Peach", preview: "linear-gradient(135deg,#140c08,#1e140e)" },
   { id: "mist", label: "Mist", preview: "linear-gradient(135deg,#08090e,#0e1016)" },
   { id: "pink", label: "Pink", preview: "linear-gradient(135deg,#14080e,#1e0e16)" },
   { id: "purple", label: "Purple", preview: "linear-gradient(135deg,#0e0814,#180e20)" },
@@ -65,10 +63,8 @@ const ANIMATIONS: { id: AnimId; label: string }[] = [
 
 const COLOR_PALETTES: Record<string, { bg1: string; bg2: string; glow: string; accent: string }> = {
   lavender: { bg1: "#0c0814", bg2: "#14101e", glow: "rgba(150, 100, 220, 0.25)", accent: "rgba(120, 80, 200, 0.12)" },
-  blush:    { bg1: "#140a0c", bg2: "#1e1012", glow: "rgba(220, 100, 140, 0.25)", accent: "rgba(200, 80, 120, 0.12)" },
   sage:     { bg1: "#080e0a", bg2: "#0e1810", glow: "rgba(80, 180, 120, 0.22)", accent: "rgba(60, 160, 100, 0.10)" },
   cloud:    { bg1: "#080a10", bg2: "#0e1218", glow: "rgba(100, 150, 220, 0.22)", accent: "rgba(80, 130, 200, 0.10)" },
-  peach:    { bg1: "#140c08", bg2: "#1e140e", glow: "rgba(220, 140, 80, 0.25)", accent: "rgba(200, 120, 60, 0.12)" },
   mist:     { bg1: "#08090e", bg2: "#0e1016", glow: "rgba(80, 140, 200, 0.22)", accent: "rgba(60, 120, 180, 0.10)" },
   pink:     { bg1: "#14080e", bg2: "#1e0e16", glow: "rgba(240, 80, 160, 0.25)", accent: "rgba(220, 60, 140, 0.12)" },
   purple:   { bg1: "#0e0814", bg2: "#180e20", glow: "rgba(160, 60, 240, 0.25)", accent: "rgba(140, 40, 220, 0.12)" },
