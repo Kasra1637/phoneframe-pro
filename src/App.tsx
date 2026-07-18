@@ -38,16 +38,40 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
-type BgId = "transparent" | "float_lavender" | "float_blush" | "float_sage" | "float_cloud" | "float_peach" | "float_mist";
+type BgId = "transparent" | "lavender" | "blush" | "sage" | "cloud" | "peach" | "mist" | "pink" | "purple" | "blue";
+type AnimId = "float" | "pulse" | "rays" | "aurora";
+
 const BACKGROUNDS: { id: BgId; label: string; preview: string }[] = [
   { id: "transparent", label: "Transparent (WebM)", preview: "transparent" },
-  { id: "float_lavender", label: "Deep Lavender", preview: "linear-gradient(135deg,#0c0814,#14101e)" },
-  { id: "float_blush", label: "Deep Blush", preview: "linear-gradient(135deg,#140a0c,#1e1012)" },
-  { id: "float_sage", label: "Deep Sage", preview: "linear-gradient(135deg,#080e0a,#0e1810)" },
-  { id: "float_cloud", label: "Deep Cloud", preview: "linear-gradient(135deg,#080a10,#0e1218)" },
-  { id: "float_peach", label: "Deep Peach", preview: "linear-gradient(135deg,#140c08,#1e140e)" },
-  { id: "float_mist", label: "Deep Mist", preview: "linear-gradient(135deg,#08090e,#0e1016)" },
+  { id: "lavender", label: "Lavender", preview: "linear-gradient(135deg,#0c0814,#14101e)" },
+  { id: "blush", label: "Blush", preview: "linear-gradient(135deg,#140a0c,#1e1012)" },
+  { id: "sage", label: "Sage", preview: "linear-gradient(135deg,#080e0a,#0e1810)" },
+  { id: "cloud", label: "Cloud", preview: "linear-gradient(135deg,#080a10,#0e1218)" },
+  { id: "peach", label: "Peach", preview: "linear-gradient(135deg,#140c08,#1e140e)" },
+  { id: "mist", label: "Mist", preview: "linear-gradient(135deg,#08090e,#0e1016)" },
+  { id: "pink", label: "Pink", preview: "linear-gradient(135deg,#14080e,#1e0e16)" },
+  { id: "purple", label: "Purple", preview: "linear-gradient(135deg,#0e0814,#180e20)" },
+  { id: "blue", label: "Blue", preview: "linear-gradient(135deg,#06081a,#0a1028)" },
 ];
+
+const ANIMATIONS: { id: AnimId; label: string }[] = [
+  { id: "float", label: "Gentle Float" },
+  { id: "pulse", label: "Breathing Pulse" },
+  { id: "rays", label: "Light Rays" },
+  { id: "aurora", label: "Aurora Waves" },
+];
+
+const COLOR_PALETTES: Record<string, { bg1: string; bg2: string; glow: string; accent: string }> = {
+  lavender: { bg1: "#0c0814", bg2: "#14101e", glow: "rgba(150, 100, 220, 0.25)", accent: "rgba(120, 80, 200, 0.12)" },
+  blush:    { bg1: "#140a0c", bg2: "#1e1012", glow: "rgba(220, 100, 140, 0.25)", accent: "rgba(200, 80, 120, 0.12)" },
+  sage:     { bg1: "#080e0a", bg2: "#0e1810", glow: "rgba(80, 180, 120, 0.22)", accent: "rgba(60, 160, 100, 0.10)" },
+  cloud:    { bg1: "#080a10", bg2: "#0e1218", glow: "rgba(100, 150, 220, 0.22)", accent: "rgba(80, 130, 200, 0.10)" },
+  peach:    { bg1: "#140c08", bg2: "#1e140e", glow: "rgba(220, 140, 80, 0.25)", accent: "rgba(200, 120, 60, 0.12)" },
+  mist:     { bg1: "#08090e", bg2: "#0e1016", glow: "rgba(80, 140, 200, 0.22)", accent: "rgba(60, 120, 180, 0.10)" },
+  pink:     { bg1: "#14080e", bg2: "#1e0e16", glow: "rgba(240, 80, 160, 0.25)", accent: "rgba(220, 60, 140, 0.12)" },
+  purple:   { bg1: "#0e0814", bg2: "#180e20", glow: "rgba(160, 60, 240, 0.25)", accent: "rgba(140, 40, 220, 0.12)" },
+  blue:     { bg1: "#06081a", bg2: "#0a1028", glow: "rgba(60, 120, 255, 0.25)", accent: "rgba(40, 100, 240, 0.12)" },
+};
 
 
 // --- Collapsible Section Component ---
@@ -88,7 +112,8 @@ function Index() {
   const [device, setDevice] = useState<DeviceId>("s24");
   const [frameColor, setFrameColor] = useState<"black" | "white">("black");
   const [preset, setPreset] = useState<PresetId>("tiktok");
-  const [bg, setBg] = useState<BgId>("float_lavender");
+  const [bg, setBg] = useState<BgId>("lavender");
+  const [anim, setAnim] = useState<AnimId>("float");
   const [scale, setScale] = useState(0.82);
   const [mockupStretchY, setMockupStretchY] = useState(1);
   const [videoFit, setVideoFit] = useState<"cover" | "contain" | "fill">("cover");
@@ -165,24 +190,12 @@ function Index() {
     const draw = () => {
       ctx.clearRect(0, 0, cw, ch);
 
-      const isFloat = bg.startsWith("float_");
+      const isFloat = bg !== "transparent";
 
       if (isFloat) {
-        // === 3D FLOATING PHONE ===
-        // Phone floats with a subtle perspective tilt and continuous
-        // bobbing animation. Shadow underneath grounds it.
+        // === 3D FLOATING PHONE with selectable animation ===
         const t = performance.now() / 1000;
-
-        // Background — deep dark gradient with visible animated glow
-        const SOFT_COLORS: Record<string, { bg1: string; bg2: string; glow: string; accent: string }> = {
-          float_lavender: { bg1: "#0c0814", bg2: "#14101e", glow: "rgba(150, 100, 220, 0.25)", accent: "rgba(120, 80, 200, 0.12)" },
-          float_blush:    { bg1: "#140a0c", bg2: "#1e1012", glow: "rgba(220, 100, 140, 0.25)", accent: "rgba(200, 80, 120, 0.12)" },
-          float_sage:     { bg1: "#080e0a", bg2: "#0e1810", glow: "rgba(80, 180, 120, 0.22)", accent: "rgba(60, 160, 100, 0.10)" },
-          float_cloud:    { bg1: "#080a10", bg2: "#0e1218", glow: "rgba(100, 150, 220, 0.22)", accent: "rgba(80, 130, 200, 0.10)" },
-          float_peach:    { bg1: "#140c08", bg2: "#1e140e", glow: "rgba(220, 140, 80, 0.25)", accent: "rgba(200, 120, 60, 0.12)" },
-          float_mist:     { bg1: "#08090e", bg2: "#0e1016", glow: "rgba(80, 140, 200, 0.22)", accent: "rgba(60, 120, 180, 0.10)" },
-        };
-        const palette = SOFT_COLORS[bg] || SOFT_COLORS.float_lavender;
+        const palette = COLOR_PALETTES[bg] || COLOR_PALETTES.lavender;
 
         // Deep dark gradient background
         const bgGrad = ctx.createRadialGradient(cw * 0.5, ch * 0.4, 0, cw * 0.5, ch * 0.5, cw * 0.7);
@@ -204,34 +217,132 @@ function Index() {
         const tiltX = Math.sin(t * 0.7) * 0.03;
         const tiltY = Math.sin(t * 1.1) * 0.02;
         const tiltZ = Math.sin(t * 0.5) * 0.008;
-
-        // Breathing glow behind phone — synced to bob, visible on dark base
-        ctx.save();
-        const glowAlpha = 0.15 + Math.sin(t * 0.4) * 0.06;
-        ctx.globalAlpha = glowAlpha;
         const glowX = cx2 + bobX * 1.2;
         const glowY = cy2 + bobY * 0.8;
         const glowR = Math.max(drawW, drawH) * 0.85;
-        const glowGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR);
-        glowGrad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
-        glowGrad.addColorStop(0.4, palette.glow);
-        glowGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
-        ctx.fillStyle = glowGrad;
-        ctx.fillRect(0, 0, cw, ch);
-        ctx.globalAlpha = 1;
-        ctx.restore();
 
-        // Secondary accent glow (slower breath, offset)
-        ctx.save();
-        const accentAlpha = 0.08 + Math.sin(t * 0.3 + 1) * 0.03;
-        ctx.globalAlpha = accentAlpha;
-        const accentGrad = ctx.createRadialGradient(glowX, glowY + drawH * 0.15, 0, glowX, glowY + drawH * 0.15, glowR * 0.5);
-        accentGrad.addColorStop(0, palette.accent.replace(/[\d.]+\)$/, "1)"));
-        accentGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
-        ctx.fillStyle = accentGrad;
-        ctx.fillRect(0, 0, cw, ch);
-        ctx.globalAlpha = 1;
-        ctx.restore();
+        // === ANIMATION: Breathing Pulse (default glow) ===
+        if (anim === "pulse" || anim === "float") {
+          ctx.save();
+          const glowAlpha = 0.15 + Math.sin(t * 0.4) * 0.06;
+          ctx.globalAlpha = glowAlpha;
+          const glowGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR);
+          glowGrad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
+          glowGrad.addColorStop(0.4, palette.glow);
+          glowGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = glowGrad;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Secondary accent
+          ctx.save();
+          const accentAlpha = 0.08 + Math.sin(t * 0.3 + 1) * 0.03;
+          ctx.globalAlpha = accentAlpha;
+          const accentGrad = ctx.createRadialGradient(glowX, glowY + drawH * 0.15, 0, glowX, glowY + drawH * 0.15, glowR * 0.5);
+          accentGrad.addColorStop(0, palette.accent.replace(/[\d.]+\)$/, "1)"));
+          accentGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = accentGrad;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
+
+        // === ANIMATION: Light Rays ===
+        if (anim === "rays") {
+          // Glow base
+          ctx.save();
+          ctx.globalAlpha = 0.12;
+          const rGlow = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, glowR);
+          rGlow.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
+          rGlow.addColorStop(0.4, palette.glow);
+          rGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = rGlow;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Rotating rays
+          ctx.save();
+          ctx.globalAlpha = 0.07;
+          const rayCount = 8;
+          const rayBaseAngle = t * 0.15;
+          for (let i = 0; i < rayCount; i++) {
+            const angle = rayBaseAngle + (i / rayCount) * Math.PI * 2;
+            const rayLen = Math.max(cw, ch) * 0.8;
+            const rayWidth = 0.08 + Math.sin(t * 0.3 + i * 1.7) * 0.03;
+            ctx.beginPath();
+            ctx.moveTo(glowX, glowY);
+            ctx.lineTo(glowX + Math.cos(angle - rayWidth) * rayLen, glowY + Math.sin(angle - rayWidth) * rayLen);
+            ctx.lineTo(glowX + Math.cos(angle + rayWidth) * rayLen, glowY + Math.sin(angle + rayWidth) * rayLen);
+            ctx.closePath();
+            const rayGrad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, rayLen);
+            rayGrad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
+            rayGrad.addColorStop(0.4, palette.glow);
+            rayGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+            ctx.fillStyle = rayGrad;
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
+
+        // === ANIMATION: Aurora Waves ===
+        if (anim === "aurora") {
+          // Wave 1 — flows from top-left
+          ctx.save();
+          ctx.globalAlpha = 0.14;
+          const w1Y = ch * 0.35 + Math.sin(t * 0.4) * ch * 0.08;
+          const w1Grad = ctx.createRadialGradient(cw * 0.3 + Math.sin(t * 0.3) * cw * 0.1, w1Y, 0, cw * 0.3, w1Y, cw * 0.5);
+          w1Grad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
+          w1Grad.addColorStop(0.4, palette.glow);
+          w1Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = w1Grad;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Wave 2 — flows from top-right
+          ctx.save();
+          ctx.globalAlpha = 0.10;
+          const w2Y = ch * 0.5 + Math.sin(t * 0.35 + 1.5) * ch * 0.06;
+          const w2Grad = ctx.createRadialGradient(cw * 0.7 + Math.sin(t * 0.25 + 2) * cw * 0.08, w2Y, 0, cw * 0.7, w2Y, cw * 0.45);
+          w2Grad.addColorStop(0, palette.accent.replace(/[\d.]+\)$/, "1)"));
+          w2Grad.addColorStop(0.4, palette.accent);
+          w2Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = w2Grad;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Wave 3 — center pulse synced to bob
+          ctx.save();
+          const w3Alpha = 0.10 + Math.sin(t * 0.5) * 0.04;
+          ctx.globalAlpha = w3Alpha;
+          const w3Grad = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, drawH * 0.7);
+          w3Grad.addColorStop(0, palette.glow.replace(/[\d.]+\)$/, "1)"));
+          w3Grad.addColorStop(0.5, palette.glow);
+          w3Grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = w3Grad;
+          ctx.fillRect(0, 0, cw, ch);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+
+          // Horizontal streaks
+          ctx.save();
+          ctx.globalAlpha = 0.04;
+          for (let i = 0; i < 4; i++) {
+            const sY = ch * (0.25 + i * 0.18) + Math.sin(t * 0.2 + i * 0.8) * ch * 0.03;
+            const sGrad = ctx.createLinearGradient(0, sY - ch * 0.015, 0, sY + ch * 0.015);
+            sGrad.addColorStop(0, "rgba(0,0,0,0)");
+            sGrad.addColorStop(0.5, palette.glow.replace(/[\d.]+\)$/, "0.8)"));
+            sGrad.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = sGrad;
+            ctx.fillRect(0, sY - ch * 0.015, cw, ch * 0.03);
+          }
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
 
         // Draw shadow (ellipse below the phone, offset and blurred)
         ctx.save();
@@ -294,7 +405,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor]);
 
 
   const exportVideo = async () => {
@@ -541,6 +652,23 @@ function Index() {
                         : { background: b.preview }
                     }
                   />
+                ))}
+              </div>
+            </Section>
+
+            {/* Animation style */}
+            <Section title="Animation" defaultOpen={true}>
+              <div className="grid grid-cols-2 gap-1.5">
+                {ANIMATIONS.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => setAnim(a.id)}
+                    className={`rounded-lg border px-3 py-2 text-[11px] transition ${
+                      anim === a.id ? "border-white bg-white/10 text-white" : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/30 hover:text-white/80"
+                    }`}
+                  >
+                    {a.label}
+                  </button>
                 ))}
               </div>
             </Section>
