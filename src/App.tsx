@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { drawHandView, preloadHandViewImages, ENVIRONMENTS, type EnvironmentId } from "./handView";
 
 export default Index;
 
@@ -38,6 +39,7 @@ const PRESETS: { id: PresetId; label: string; w: number; h: number; note: string
   { id: "source", label: "Tight crop (phone only)", w: 0, h: 0, note: "auto" },
 ];
 
+type ViewMode = "floating" | "hand";
 type BgId = "transparent" | "lavender" | "sage" | "cloud" | "mist" | "pink" | "purple" | "blue";
 type AnimId = "float" | "pulse" | "rays" | "aurora" | "orbit" | "breathe";
 
@@ -124,6 +126,8 @@ function Index() {
   const [error, setError] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<"auto" | "mp4" | "webm">("auto");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>("floating");
+  const [envBg, setEnvBg] = useState<EnvironmentId>("living_room");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -131,6 +135,8 @@ function Index() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+
+  useEffect(() => { preloadHandViewImages(); }, []);
 
   const handleFile = (file: File) => {
     setError(null);
@@ -187,6 +193,14 @@ function Index() {
 
     const draw = () => {
       ctx.clearRect(0, 0, cw, ch);
+
+      // --- Hand-holding-phone view ---
+      if (viewMode === "hand" && video) {
+        const t = performance.now() / 1000;
+        drawHandView(ctx, cw, ch, video, envBg, t, videoFit, videoScale, videoOffsetX, videoOffsetY);
+        rafRef.current = requestAnimationFrame(draw);
+        return;
+      }
 
       const isFloat = bg !== "transparent";
 
@@ -514,7 +528,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg]);
 
 
   const exportVideo = async () => {
@@ -528,7 +542,7 @@ function Index() {
     setResult(null);
 
     try {
-      const transparent = bg === "transparent";
+      const transparent = viewMode !== "hand" && bg === "transparent";
       const mp4Candidates = [
         'video/mp4;codecs="avc1.42E01F,mp4a.40.2"',
         'video/mp4;codecs="avc1.640028,mp4a.40.2"',
@@ -698,7 +712,50 @@ function Index() {
               )}
             </Section>
 
-            {/* Device Frame */}
+            {/* View Style */}
+            <Section title="View style" defaultOpen={true}>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  onClick={() => setViewMode("floating")}
+                  className={`rounded-lg border px-3 py-2.5 text-[11px] font-medium transition ${
+                    viewMode === "floating" ? "border-white bg-white/10 text-white" : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/30 hover:text-white/80"
+                  }`}
+                >
+                  Floating Phone
+                </button>
+                <button
+                  onClick={() => setViewMode("hand")}
+                  className={`rounded-lg border px-3 py-2.5 text-[11px] font-medium transition ${
+                    viewMode === "hand" ? "border-white bg-white/10 text-white" : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/30 hover:text-white/80"
+                  }`}
+                >
+                  Hand Holding
+                </button>
+              </div>
+            </Section>
+
+            {/* Environment (hand view only) */}
+            {viewMode === "hand" && (
+              <Section title="Environment" defaultOpen={true}>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {ENVIRONMENTS.map((e) => (
+                    <button
+                      key={e.id}
+                      onClick={() => setEnvBg(e.id)}
+                      className={`overflow-hidden rounded-lg border text-[11px] transition ${
+                        envBg === e.id ? "border-white ring-1 ring-white" : "border-white/15 hover:border-white/40"
+                      }`}
+                    >
+                      <img src={e.url} alt={e.label} className="aspect-[3/4] w-full object-cover" loading="lazy" />
+                      <div className="px-1 py-1 text-center text-white/70">{e.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </Section>
+            )}
+
+            {/* Device Frame (floating only) */}
+            {viewMode === "floating" && (
             <Section title="Device frame">
               <select
                 value={device}
@@ -726,6 +783,7 @@ function Index() {
                 />
               </div>
             </Section>
+            )}
 
 
             {/* Platform Preset */}
@@ -744,7 +802,8 @@ function Index() {
               </select>
             </Section>
 
-            {/* Background — open by default */}
+            {/* Background — floating only */}
+            {viewMode === "floating" && (
             <Section title="Background" defaultOpen={true}>
               <div className="grid grid-cols-5 gap-1.5">
                 {BACKGROUNDS.map((b) => (
@@ -764,8 +823,10 @@ function Index() {
                 ))}
               </div>
             </Section>
+            )}
 
-            {/* Animation style */}
+            {/* Animation style — floating only */}
+            {viewMode === "floating" && (
             <Section title="Animation" defaultOpen={true}>
               <div className="grid grid-cols-2 gap-1.5">
                 {ANIMATIONS.map((a) => (
@@ -781,7 +842,7 @@ function Index() {
                 ))}
               </div>
             </Section>
-
+            )}
 
             {/* Phone Size */}
             <Section title={`Phone size (${Math.round(scale * 100)}%)`}>
