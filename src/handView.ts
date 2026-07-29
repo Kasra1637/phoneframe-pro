@@ -24,8 +24,10 @@ export const ENVIRONMENTS: EnvironmentOption[] = [
   },
 ];
 
+// Clean hand-only photo: woman's hand holding phone with blank screen, white bg
+// Pexels 6203792 by Hanna Pad — 2919x4378, just hand/wrist/phone, no body
 const HAND_IMAGE_URL =
-  "https://images.pexels.com/photos/6203551/pexels-photo-6203551.jpeg?auto=compress&cs=tinysrgb&h=1200&w=800";
+  "https://images.pexels.com/photos/6203792/pexels-photo-6203792.jpeg?auto=compress&cs=tinysrgb&h=1200&w=800";
 
 const imageCache = new Map<string, HTMLImageElement>();
 
@@ -46,85 +48,117 @@ export function preloadHandViewImages() {
   for (const env of ENVIRONMENTS) loadImage(env.url);
 }
 
-// Source crop region in the original image (normalized 0..1).
-// Crops to just the hand/wrist/phone area, excluding shoulder and body.
-const SRC_CROP = {
-  x: 0.18,
-  y: 0.0,
-  w: 0.82,
-  h: 0.58,
+const DEFAULT_SCREEN = {
+  x: 0.28,
+  y: 0.08,
+  w: 0.46,
+  h: 0.52,
 };
 
-// Screen region relative to the CROPPED image (normalized 0..1).
-// Recalculated after crop so video composites into the phone screen.
-const SCREEN_REGION = {
-  x: 0.20,
-  y: 0.22,
-  w: 0.50,
-  h: 0.58,
-  radius: 0.025,
-};
+const SCREEN_RADIUS = 0.03;
 
-// Offscreen canvas cache for background-removed hand image
-let processedCache: { src: HTMLImageElement; canvas: HTMLCanvasElement } | null = null;
+export interface ScreenOverride {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+// Offscreen canvas for background-removed hand
+let processedCache: { src: HTMLImageElement; canvas: HTMLCanvasElement } | null =
+  null;
 
 function getProcessedHand(img: HTMLImageElement): HTMLCanvasElement | null {
   if (processedCache && processedCache.src === img) return processedCache.canvas;
 
-  const sw = Math.round(img.naturalWidth * SRC_CROP.w);
-  const sh = Math.round(img.naturalHeight * SRC_CROP.h);
-  const sx = Math.round(img.naturalWidth * SRC_CROP.x);
-  const sy = Math.round(img.naturalHeight * SRC_CROP.y);
-
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
   const c = document.createElement("canvas");
-  c.width = sw;
-  c.height = sh;
+  c.width = w;
+  c.height = h;
   const octx = c.getContext("2d", { willReadFrequently: true });
   if (!octx) return null;
 
-  octx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  octx.drawImage(img, 0, 0);
 
-  // Remove white/bright background pixels
-  const id = octx.getImageData(0, 0, sw, sh);
+  const id = octx.getImageData(0, 0, w, h);
   const d = id.data;
+
+  // Remove white / near-white background
   for (let i = 0; i < d.length; i += 4) {
-    const r = d[i], g = d[i + 1], b = d[i + 2];
-    const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
-    const saturation = Math.max(r, g, b) - Math.min(r, g, b);
+    const r = d[i],
+      g = d[i + 1],
+      b = d[i + 2];
+    const luma = r * 0.299 + g * 0.587 + b * 0.114;
+    const sat = Math.max(r, g, b) - Math.min(r, g, b);
 
-    if (brightness > 215 && saturation < 35) {
+    if (luma > 230 && sat < 30) {
       d[i + 3] = 0;
-    } else if (brightness > 185 && saturation < 45) {
-      const t = (brightness - 185) / 30;
-      d[i + 3] = Math.round(d[i + 3] * (1 - t));
+    } else if (luma > 200 && sat < 40) {
+      const t = (luma - 200) / 30;
+      d[i + 3] = Math.round(d[i + 3] * Math.max(0, 1 - t));
     }
   }
 
-  // Feather bottom edge so it fades out naturally
-  const fadeStart = sh * 0.75;
-  const fadeEnd = sh;
-  for (let y = Math.floor(fadeStart); y < fadeEnd; y++) {
-    const t = (y - fadeStart) / (fadeEnd - fadeStart);
-    const alpha = 1 - t * t;
-    for (let x = 0; x < sw; x++) {
-      const idx = (y * sw + x) * 4;
-      d[idx + 3] = Math.round(d[idx + 3] * alpha);
+  // Feather all four edges for a natural blend
+  const fadeEdge = (
+    startFn: (i: number) => number,
+    endFn: (i: number) => number,
+    iterOuter: number,
+    iterInner: number,
+    idxFn: (outer: number, inner: number) => number,
+  ) => {
+    for (let outer = 0; outer < iterOuter; outer++) {
+      const s = startFn(outer);
+      const e = endFn(outer);
+      for (let inner = s; inner < e; inner++) {
+        const t = (inner - s) / (e - s);
+        const alpha = t * t;
+        const idx = idxFn(outer, inner) * 4;
+        d[idx + 3] = Math.round(d[idx + 3] * alpha);
+      }
+    }
+  };
+
+  const edgePct = 0.08;
+  // Top
+  const topEnd = Math.floor(h * edgePct);
+  for (let y = 0; y < topEnd; y++) {
+    const a = (y / topEnd) ** 2;
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      d[idx + 3] = Math.round(d[idx + 3] * a);
     }
   }
-
-  // Feather left edge
-  const fadeLeftEnd = sw * 0.12;
-  for (let x = 0; x < fadeLeftEnd; x++) {
-    const t = x / fadeLeftEnd;
-    const alpha = t * t;
-    for (let y = 0; y < sh; y++) {
-      const idx = (y * sw + x) * 4;
-      d[idx + 3] = Math.round(d[idx + 3] * alpha);
+  // Bottom
+  const botStart = Math.floor(h * (1 - edgePct));
+  for (let y = botStart; y < h; y++) {
+    const a = ((h - y) / (h - botStart)) ** 2;
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      d[idx + 3] = Math.round(d[idx + 3] * a);
+    }
+  }
+  // Left
+  const leftEnd = Math.floor(w * edgePct);
+  for (let x = 0; x < leftEnd; x++) {
+    const a = (x / leftEnd) ** 2;
+    for (let y = 0; y < h; y++) {
+      const idx = (y * w + x) * 4;
+      d[idx + 3] = Math.round(d[idx + 3] * a);
+    }
+  }
+  // Right
+  const rightStart = Math.floor(w * (1 - edgePct));
+  for (let x = rightStart; x < w; x++) {
+    const a = ((w - x) / (w - rightStart)) ** 2;
+    for (let y = 0; y < h; y++) {
+      const idx = (y * w + x) * 4;
+      d[idx + 3] = Math.round(d[idx + 3] * a);
     }
   }
 
   octx.putImageData(id, 0, 0);
-
   processedCache = { src: img, canvas: c };
   return c;
 }
@@ -140,35 +174,43 @@ export function drawHandView(
   videoScale: number,
   videoOffsetX: number,
   videoOffsetY: number,
+  screenOverride?: ScreenOverride,
 ) {
+  const SCREEN = screenOverride ?? DEFAULT_SCREEN;
   const env = ENVIRONMENTS.find((e) => e.id === envId) ?? ENVIRONMENTS[0];
   const bgImg = loadImage(env.url);
   const handImg = loadImage(HAND_IMAGE_URL);
 
-  const swayX = Math.sin(time * 0.7) * cw * 0.004 + Math.sin(time * 1.9) * cw * 0.002;
-  const swayY = Math.sin(time * 0.9) * ch * 0.005 + Math.sin(time * 2.3) * ch * 0.0015;
-  const swayRot = Math.sin(time * 0.5) * 0.006 + Math.sin(time * 1.4) * 0.003;
+  const swayX =
+    Math.sin(time * 0.7) * cw * 0.004 + Math.sin(time * 1.9) * cw * 0.002;
+  const swayY =
+    Math.sin(time * 0.9) * ch * 0.005 + Math.sin(time * 2.3) * ch * 0.0015;
+  const swayRot =
+    Math.sin(time * 0.5) * 0.006 + Math.sin(time * 1.4) * 0.003;
 
-  // --- 1. Draw environment background (blurred) ---
+  // --- 1. Environment background ---
   ctx.save();
   if (bgImg) {
-    const bgScale = Math.max(cw / bgImg.naturalWidth, ch / bgImg.naturalHeight) * 1.15;
+    const bgScale =
+      Math.max(cw / bgImg.naturalWidth, ch / bgImg.naturalHeight) * 1.15;
     const bw = bgImg.naturalWidth * bgScale;
     const bh = bgImg.naturalHeight * bgScale;
-    const bx = (cw - bw) / 2;
-    const by = (ch - bh) / 2;
     ctx.filter = "blur(18px) brightness(0.55) saturate(0.85)";
-    ctx.drawImage(bgImg, bx, by, bw, bh);
+    ctx.drawImage(bgImg, (cw - bw) / 2, (ch - bh) / 2, bw, bh);
     ctx.filter = "none";
   } else {
-    const fallback = ctx.createRadialGradient(cw * 0.5, ch * 0.4, 0, cw * 0.5, ch * 0.5, cw * 0.7);
-    fallback.addColorStop(0, "#1a1612");
-    fallback.addColorStop(1, "#0c0a08");
-    ctx.fillStyle = fallback;
+    const g = ctx.createRadialGradient(
+      cw * 0.5, ch * 0.4, 0,
+      cw * 0.5, ch * 0.5, cw * 0.7,
+    );
+    g.addColorStop(0, "#1a1612");
+    g.addColorStop(1, "#0c0a08");
+    ctx.fillStyle = g;
     ctx.fillRect(0, 0, cw, ch);
   }
   ctx.restore();
 
+  // Warm overlay
   ctx.save();
   ctx.globalAlpha = 0.12;
   ctx.fillStyle = "#1a1008";
@@ -180,76 +222,76 @@ export function drawHandView(
     ctx.fillStyle = "rgba(255,255,255,0.3)";
     ctx.font = `${Math.round(cw * 0.025)}px sans-serif`;
     ctx.textAlign = "center";
-    ctx.fillText("Loading hand mockup...", cw / 2, ch / 2);
+    ctx.fillText("Loading hand mockup\u2026", cw / 2, ch / 2);
     return;
   }
 
   const processed = getProcessedHand(handImg);
   if (!processed) return;
 
-  // Scale cropped hand image to fit the canvas
-  const cropAspect = processed.width / processed.height;
-  const targetH = ch * 1.1;
-  const targetW = targetH * cropAspect;
-  const handX = (cw - targetW) / 2 + cw * 0.05;
-  const handY = ch - targetH + ch * 0.08;
+  // --- Scale hand image to fill canvas height ---
+  const imgAspect = processed.width / processed.height;
+  const drawH = ch * 1.05;
+  const drawW = drawH * imgAspect;
+  const handX = (cw - drawW) / 2;
+  const handY = (ch - drawH) / 2 + ch * 0.02;
 
-  // Screen rect in canvas coordinates (relative to cropped image)
-  const screenX = handX + SCREEN_REGION.x * targetW;
-  const screenY = handY + SCREEN_REGION.y * targetH;
-  const screenW = SCREEN_REGION.w * targetW;
-  const screenH = SCREEN_REGION.h * targetH;
-  const screenR = SCREEN_REGION.radius * targetW;
+  // Phone screen rect in canvas space
+  const sx = handX + SCREEN.x * drawW;
+  const sy = handY + SCREEN.y * drawH;
+  const sw = SCREEN.w * drawW;
+  const sh = SCREEN.h * drawH;
+  const sr = SCREEN_RADIUS * drawW;
 
-  // --- Apply sway ---
+  // --- Sway transform ---
   ctx.save();
   ctx.translate(cw / 2 + swayX, ch / 2 + swayY);
   ctx.rotate(swayRot);
   ctx.translate(-cw / 2, -ch / 2);
 
-  // --- 2. Draw video in phone screen area ---
+  // --- 2. Draw video into phone screen ---
   if (video.readyState >= 2) {
     ctx.save();
-    roundedRect(ctx, screenX, screenY, screenW, screenH, screenR);
+    roundedRect(ctx, sx, sy, sw, sh, sr);
     ctx.clip();
+
+    // Black fill behind video
     ctx.fillStyle = "#000";
-    ctx.fillRect(screenX, screenY, screenW, screenH);
+    ctx.fillRect(sx, sy, sw, sh);
 
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    let baseScale: number;
-    if (videoFit === "contain") baseScale = Math.min(screenW / vw, screenH / vh);
-    else if (videoFit === "fill") baseScale = 1;
-    else baseScale = Math.max(screenW / vw, screenH / vh);
-    const s = baseScale * videoScale;
-    const dw = videoFit === "fill" ? screenW : vw * s;
-    const dh = videoFit === "fill" ? screenH : vh * s;
-    const maxOffX = Math.max(0, (dw - screenW) / 2);
-    const maxOffY = Math.max(0, (dh - screenH) / 2);
-    const offX = (videoOffsetX / 100) * maxOffX;
-    const offY = (videoOffsetY / 100) * maxOffY;
-    const dx = screenX + (screenW - dw) / 2 + offX;
-    const dy = screenY + (screenH - dh) / 2 + offY;
-    ctx.drawImage(video, dx, dy, dw, dh);
+    let base: number;
+    if (videoFit === "contain") base = Math.min(sw / vw, sh / vh);
+    else if (videoFit === "fill") base = 1;
+    else base = Math.max(sw / vw, sh / vh);
+    const s = base * videoScale;
+    const dw = videoFit === "fill" ? sw : vw * s;
+    const dh = videoFit === "fill" ? sh : vh * s;
+    const maxOx = Math.max(0, (dw - sw) / 2);
+    const maxOy = Math.max(0, (dh - sh) / 2);
+    const ox = (videoOffsetX / 100) * maxOx;
+    const oy = (videoOffsetY / 100) * maxOy;
+    ctx.drawImage(video, sx + (sw - dw) / 2 + ox, sy + (sh - dh) / 2 + oy, dw, dh);
     ctx.restore();
   }
 
-  // --- 3. Draw processed hand (white bg removed, cropped) on top ---
-  ctx.drawImage(processed, handX, handY, targetW, targetH);
+  // --- 3. Hand image (bg removed) on top ---
+  ctx.drawImage(processed, handX, handY, drawW, drawH);
 
   // --- Glass reflection ---
   ctx.save();
-  roundedRect(ctx, screenX, screenY, screenW, screenH, screenR);
+  roundedRect(ctx, sx, sy, sw, sh, sr);
   ctx.clip();
-  const sheen = ctx.createLinearGradient(screenX, screenY, screenX + screenW * 0.6, screenY + screenH * 0.6);
+  const sheen = ctx.createLinearGradient(sx, sy, sx + sw * 0.6, sy + sh * 0.6);
   sheen.addColorStop(0, "rgba(255,255,255,0.06)");
   sheen.addColorStop(0.3, "rgba(255,255,255,0.02)");
   sheen.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = sheen;
-  ctx.fillRect(screenX, screenY, screenW, screenH);
+  ctx.fillRect(sx, sy, sw, sh);
   ctx.restore();
 
-  ctx.restore();
+  ctx.restore(); // sway
 
   // --- 4. Vignette ---
   ctx.save();
@@ -266,7 +308,14 @@ export function drawHandView(
   ctx.restore();
 }
 
-function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+function roundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);

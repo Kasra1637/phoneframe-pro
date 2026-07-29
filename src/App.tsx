@@ -128,6 +128,10 @@ function Index() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("floating");
   const [envBg, setEnvBg] = useState<EnvironmentId>("living_room");
+  const [screenX, setScreenX] = useState(0.28);
+  const [screenY, setScreenY] = useState(0.08);
+  const [screenW, setScreenW] = useState(0.46);
+  const [screenH, setScreenH] = useState(0.52);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -197,7 +201,7 @@ function Index() {
       // --- Hand-holding-phone view ---
       if (viewMode === "hand" && video) {
         const t = performance.now() / 1000;
-        drawHandView(ctx, cw, ch, video, envBg, t, videoFit, videoScale, videoOffsetX, videoOffsetY);
+        drawHandView(ctx, cw, ch, video, envBg, t, videoFit, videoScale, videoOffsetX, videoOffsetY, { x: screenX, y: screenY, w: screenW, h: screenH });
         rafRef.current = requestAnimationFrame(draw);
         return;
       }
@@ -528,7 +532,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg, screenX, screenY, screenW, screenH]);
 
 
   const exportVideo = async () => {
@@ -749,6 +753,34 @@ function Index() {
                       <img src={e.url} alt={e.label} className="aspect-[3/4] w-full object-cover" loading="lazy" />
                       <div className="px-1 py-1 text-center text-white/70">{e.label}</div>
                     </button>
+                  ))}
+                </div>
+              </Section>
+            )}
+
+            {/* Screen position (hand view only) */}
+            {viewMode === "hand" && (
+              <Section title="Screen position">
+                <div className="space-y-2">
+                  {([
+                    ["Left", screenX, setScreenX],
+                    ["Top", screenY, setScreenY],
+                    ["Width", screenW, setScreenW],
+                    ["Height", screenH, setScreenH],
+                  ] as const).map(([label, val, setter]) => (
+                    <div key={label} className="flex items-center gap-2">
+                      <span className="w-11 shrink-0 text-[11px] text-white/50">{label}</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={val}
+                        onChange={(e) => (setter as (v: number) => void)(parseFloat(e.target.value))}
+                        className="h-1 flex-1 cursor-pointer accent-white"
+                      />
+                      <span className="w-8 text-right text-[10px] tabular-nums text-white/40">{Math.round(val * 100)}%</span>
+                    </div>
                   ))}
                 </div>
               </Section>
