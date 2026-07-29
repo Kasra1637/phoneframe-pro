@@ -46,16 +46,88 @@ export function preloadHandViewImages() {
   for (const env of ENVIRONMENTS) loadImage(env.url);
 }
 
-// Screen region in the hand photo (6203551) — normalized coordinates [0..1]
-// The phone screen sits roughly in this bounding box within the image.
-// These are calibrated for this specific photo: woman holding phone with black screen.
-const SCREEN_REGION = {
-  x: 0.30,
-  y: 0.12,
-  w: 0.42,
-  h: 0.50,
-  radius: 0.02,
+// Source crop region in the original image (normalized 0..1).
+// Crops to just the hand/wrist/phone area, excluding shoulder and body.
+const SRC_CROP = {
+  x: 0.18,
+  y: 0.0,
+  w: 0.82,
+  h: 0.58,
 };
+
+// Screen region relative to the CROPPED image (normalized 0..1).
+// Recalculated after crop so video composites into the phone screen.
+const SCREEN_REGION = {
+  x: 0.20,
+  y: 0.22,
+  w: 0.50,
+  h: 0.58,
+  radius: 0.025,
+};
+
+// Offscreen canvas cache for background-removed hand image
+let processedCache: { src: HTMLImageElement; canvas: HTMLCanvasElement } | null = null;
+
+function getProcessedHand(img: HTMLImageElement): HTMLCanvasElement | null {
+  if (processedCache && processedCache.src === img) return processedCache.canvas;
+
+  const sw = Math.round(img.naturalWidth * SRC_CROP.w);
+  const sh = Math.round(img.naturalHeight * SRC_CROP.h);
+  const sx = Math.round(img.naturalWidth * SRC_CROP.x);
+  const sy = Math.round(img.naturalHeight * SRC_CROP.y);
+
+  const c = document.createElement("canvas");
+  c.width = sw;
+  c.height = sh;
+  const octx = c.getContext("2d", { willReadFrequently: true });
+  if (!octx) return null;
+
+  octx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+  // Remove white/bright background pixels
+  const id = octx.getImageData(0, 0, sw, sh);
+  const d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+    const saturation = Math.max(r, g, b) - Math.min(r, g, b);
+
+    if (brightness > 215 && saturation < 35) {
+      d[i + 3] = 0;
+    } else if (brightness > 185 && saturation < 45) {
+      const t = (brightness - 185) / 30;
+      d[i + 3] = Math.round(d[i + 3] * (1 - t));
+    }
+  }
+
+  // Feather bottom edge so it fades out naturally
+  const fadeStart = sh * 0.75;
+  const fadeEnd = sh;
+  for (let y = Math.floor(fadeStart); y < fadeEnd; y++) {
+    const t = (y - fadeStart) / (fadeEnd - fadeStart);
+    const alpha = 1 - t * t;
+    for (let x = 0; x < sw; x++) {
+      const idx = (y * sw + x) * 4;
+      d[idx + 3] = Math.round(d[idx + 3] * alpha);
+    }
+  }
+
+  // Feather left edge
+  const fadeLeftEnd = sw * 0.12;
+  for (let x = 0; x < fadeLeftEnd; x++) {
+    const t = x / fadeLeftEnd;
+    const alpha = t * t;
+    for (let y = 0; y < sh; y++) {
+      const idx = (y * sw + x) * 4;
+      d[idx + 3] = Math.round(d[idx + 3] * alpha);
+    }
+  }
+
+  octx.putImageData(id, 0, 0);
+
+  processedCache = { src: img, canvas: c };
+  return c;
+}
 
 export function drawHandView(
   ctx: CanvasRenderingContext2D,
@@ -73,12 +145,11 @@ export function drawHandView(
   const bgImg = loadImage(env.url);
   const handImg = loadImage(HAND_IMAGE_URL);
 
-  // --- Sway animation: subtle micro-movement ---
   const swayX = Math.sin(time * 0.7) * cw * 0.004 + Math.sin(time * 1.9) * cw * 0.002;
   const swayY = Math.sin(time * 0.9) * ch * 0.005 + Math.sin(time * 2.3) * ch * 0.0015;
   const swayRot = Math.sin(time * 0.5) * 0.006 + Math.sin(time * 1.4) * 0.003;
 
-  // --- 1. Draw blurred environment background ---
+  // --- 1. Draw environment background (blurred) ---
   ctx.save();
   if (bgImg) {
     const bgScale = Math.max(cw / bgImg.naturalWidth, ch / bgImg.naturalHeight) * 1.15;
@@ -98,16 +169,14 @@ export function drawHandView(
   }
   ctx.restore();
 
-  // --- Warm overlay to unify the background ---
   ctx.save();
-  ctx.globalAlpha = 0.15;
+  ctx.globalAlpha = 0.12;
   ctx.fillStyle = "#1a1008";
   ctx.fillRect(0, 0, cw, ch);
   ctx.globalAlpha = 1;
   ctx.restore();
 
   if (!handImg) {
-    // Hand image still loading — show placeholder text
     ctx.fillStyle = "rgba(255,255,255,0.3)";
     ctx.font = `${Math.round(cw * 0.025)}px sans-serif`;
     ctx.textAlign = "center";
@@ -115,28 +184,30 @@ export function drawHandView(
     return;
   }
 
-  // --- Calculate hand image draw dimensions ---
-  // Scale hand image to fill the canvas height with some margin
-  const handAspect = handImg.naturalWidth / handImg.naturalHeight;
-  const targetH = ch * 1.05;
-  const targetW = targetH * handAspect;
-  const handX = (cw - targetW) / 2;
-  const handY = (ch - targetH) / 2 + ch * 0.05; // slight downward offset for first-person feel
+  const processed = getProcessedHand(handImg);
+  if (!processed) return;
 
-  // Screen rect in canvas coordinates
+  // Scale cropped hand image to fit the canvas
+  const cropAspect = processed.width / processed.height;
+  const targetH = ch * 1.1;
+  const targetW = targetH * cropAspect;
+  const handX = (cw - targetW) / 2 + cw * 0.05;
+  const handY = ch - targetH + ch * 0.08;
+
+  // Screen rect in canvas coordinates (relative to cropped image)
   const screenX = handX + SCREEN_REGION.x * targetW;
   const screenY = handY + SCREEN_REGION.y * targetH;
   const screenW = SCREEN_REGION.w * targetW;
   const screenH = SCREEN_REGION.h * targetH;
   const screenR = SCREEN_REGION.radius * targetW;
 
-  // --- Apply sway transform to everything (hand + screen + video) ---
+  // --- Apply sway ---
   ctx.save();
   ctx.translate(cw / 2 + swayX, ch / 2 + swayY);
   ctx.rotate(swayRot);
   ctx.translate(-cw / 2, -ch / 2);
 
-  // --- 2. Draw video in screen area (below hand) ---
+  // --- 2. Draw video in phone screen area ---
   if (video.readyState >= 2) {
     ctx.save();
     roundedRect(ctx, screenX, screenY, screenW, screenH, screenR);
@@ -163,10 +234,10 @@ export function drawHandView(
     ctx.restore();
   }
 
-  // --- 3. Draw hand image on top ---
-  ctx.drawImage(handImg, handX, handY, targetW, targetH);
+  // --- 3. Draw processed hand (white bg removed, cropped) on top ---
+  ctx.drawImage(processed, handX, handY, targetW, targetH);
 
-  // --- Glass reflection on screen ---
+  // --- Glass reflection ---
   ctx.save();
   roundedRect(ctx, screenX, screenY, screenW, screenH, screenR);
   ctx.clip();
@@ -178,7 +249,7 @@ export function drawHandView(
   ctx.fillRect(screenX, screenY, screenW, screenH);
   ctx.restore();
 
-  ctx.restore(); // end sway transform
+  ctx.restore();
 
   // --- 4. Vignette ---
   ctx.save();
