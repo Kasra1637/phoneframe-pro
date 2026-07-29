@@ -128,10 +128,10 @@ function Index() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("floating");
   const [envBg, setEnvBg] = useState<EnvironmentId>("living_room");
-  const [screenX, setScreenX] = useState(0.28);
-  const [screenY, setScreenY] = useState(0.08);
-  const [screenW, setScreenW] = useState(0.46);
-  const [screenH, setScreenH] = useState(0.52);
+  const [screenX, setScreenX] = useState(0.22);
+  const [screenY, setScreenY] = useState(0.06);
+  const [screenW, setScreenW] = useState(0.42);
+  const [screenH, setScreenH] = useState(0.58);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
