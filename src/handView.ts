@@ -35,13 +35,13 @@ export interface ScreenOverride {
 }
 
 const DEFAULT_SCREEN: ScreenOverride = {
-  x: 0.30,
-  y: 0.12,
-  w: 0.40,
-  h: 0.52,
+  x: 0.32,
+  y: 0.13,
+  w: 0.36,
+  h: 0.50,
 };
 
-const SCREEN_RADIUS_NORM = 0.012;
+const SCREEN_RADIUS_NORM = 0.008;
 
 const imageCache = new Map<string, HTMLImageElement>();
 
@@ -62,6 +62,137 @@ export function preloadHandViewImages() {
   for (const env of ENVIRONMENTS) loadImage(env.url);
 }
 
+let processedHandCache: {
+  src: HTMLImageElement;
+  canvas: HTMLCanvasElement;
+  screenKey: string;
+} | null = null;
+
+function getProcessedHand(
+  img: HTMLImageElement,
+  screen: ScreenOverride,
+): HTMLCanvasElement | null {
+  const sk = `${screen.x}_${screen.y}_${screen.w}_${screen.h}`;
+  if (processedHandCache?.src === img && processedHandCache.screenKey === sk) {
+    return processedHandCache.canvas;
+  }
+
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  if (w === 0 || h === 0) return null;
+
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const octx = c.getContext("2d", { willReadFrequently: true });
+  if (!octx) return null;
+
+  octx.drawImage(img, 0, 0);
+  const imageData = octx.getImageData(0, 0, w, h);
+  const d = imageData.data;
+
+  // Screen rect in pixel coords — make fully transparent so video shows through
+  const sL = Math.floor(screen.x * w);
+  const sT = Math.floor(screen.y * h);
+  const sR = Math.ceil((screen.x + screen.w) * w);
+  const sB = Math.ceil((screen.y + screen.h) * h);
+
+  // First pass: classify each pixel
+  const alphaMap = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) alphaMap[i] = 1.0;
+
+  for (let py = 0; py < h; py++) {
+    for (let px = 0; px < w; px++) {
+      const idx = py * w + px;
+      const i = idx * 4;
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+
+      // Inside phone screen: make fully transparent
+      if (px >= sL && px <= sR && py >= sT && py <= sB) {
+        alphaMap[idx] = 0;
+        continue;
+      }
+
+      // Outside screen: remove only white/neutral-gray background pixels.
+      // Skin tones have high chroma (R much larger than B) so they're protected.
+      const mn = Math.min(r, g, b);
+      const mx = Math.max(r, g, b);
+      const chroma = mx - mn;
+      const luma = r * 0.299 + g * 0.587 + b * 0.114;
+
+      // Pure white/near-white with very low chroma → background
+      if (luma > 230 && chroma < 18) {
+        alphaMap[idx] = 0;
+      } else if (luma > 210 && chroma < 25) {
+        // Transition zone — feather based on how white/neutral it is
+        const lumaFade = (luma - 210) / 20;
+        const chromaFade = 1 - chroma / 25;
+        alphaMap[idx] = 1 - lumaFade * chromaFade;
+      } else if (luma > 195 && chroma < 15) {
+        // Light gray with very low chroma — also likely background shadow edge
+        const t = (luma - 195) / 15 * (1 - chroma / 15);
+        alphaMap[idx] = 1 - t * 0.7;
+      }
+    }
+  }
+
+  // Alpha erosion: expand transparent areas by 1px to clean hard edges
+  const eroded = new Float32Array(alphaMap);
+  for (let py = 1; py < h - 1; py++) {
+    for (let px = 1; px < w - 1; px++) {
+      const idx = py * w + px;
+      if (alphaMap[idx] > 0.5) {
+        // If any neighbor is fully transparent, soften this pixel
+        let hasTransparentNeighbor = false;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dy === 0 && dx === 0) continue;
+            if (alphaMap[(py + dy) * w + (px + dx)] < 0.05) {
+              hasTransparentNeighbor = true;
+            }
+          }
+        }
+        if (hasTransparentNeighbor) {
+          eroded[idx] = Math.min(eroded[idx], 0.4);
+        }
+      }
+    }
+  }
+
+  // Blur alpha for smooth edges (two-pass 3x3 box blur)
+  let current = eroded;
+  for (let pass = 0; pass < 2; pass++) {
+    const next = new Float32Array(w * h);
+    for (let py = 0; py < h; py++) {
+      for (let px = 0; px < w; px++) {
+        let sum = 0, count = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const ny = py + dy, nx = px + dx;
+            if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
+              sum += current[ny * w + nx];
+              count++;
+            }
+          }
+        }
+        next[py * w + px] = sum / count;
+      }
+    }
+    current = next;
+  }
+
+  // Apply final alpha — use minimum of original classification and blurred
+  // to avoid expanding opaque areas into transparent regions
+  for (let i = 0; i < w * h; i++) {
+    const finalAlpha = Math.min(eroded[i], current[i]);
+    d[i * 4 + 3] = Math.round(finalAlpha * 255);
+  }
+
+  octx.putImageData(imageData, 0, 0);
+  processedHandCache = { src: img, canvas: c, screenKey: sk };
+  return c;
+}
+
 export function drawHandView(
   ctx: CanvasRenderingContext2D,
   cw: number,
@@ -76,6 +207,8 @@ export function drawHandView(
   screenOverride?: ScreenOverride,
 ) {
   const SCREEN = screenOverride ?? DEFAULT_SCREEN;
+  const env = ENVIRONMENTS.find((e) => e.id === envId) ?? ENVIRONMENTS[0];
+  const bgImg = loadImage(env.url);
   const handImg = loadImage(HAND_IMAGE_URL);
 
   const swayX =
@@ -85,25 +218,42 @@ export function drawHandView(
   const swayRot =
     Math.sin(time * 0.5) * 0.004 + Math.sin(time * 1.4) * 0.002;
 
-  // Clear canvas
   ctx.clearRect(0, 0, cw, ch);
+
+  // --- 1. Environment background (full, slightly dimmed for depth) ---
+  if (bgImg) {
+    const bgScale = Math.max(cw / bgImg.naturalWidth, ch / bgImg.naturalHeight);
+    const bw = bgImg.naturalWidth * bgScale;
+    const bh = bgImg.naturalHeight * bgScale;
+    ctx.save();
+    ctx.filter = "brightness(0.8) saturate(0.9)";
+    ctx.drawImage(bgImg, (cw - bw) / 2, (ch - bh) / 2, bw, bh);
+    ctx.filter = "none";
+    ctx.restore();
+  } else {
+    ctx.fillStyle = "#1a1612";
+    ctx.fillRect(0, 0, cw, ch);
+  }
 
   if (!handImg) {
     ctx.fillStyle = "rgba(255,255,255,0.3)";
     ctx.font = `${Math.round(cw * 0.025)}px sans-serif`;
     ctx.textAlign = "center";
-    ctx.fillText("Loading hand mockup\u2026", cw / 2, ch / 2);
+    ctx.fillText("Loading\u2026", cw / 2, ch / 2);
     return;
   }
 
-  // Scale hand image to fill the canvas height
-  const imgAspect = handImg.naturalWidth / handImg.naturalHeight;
+  const processed = getProcessedHand(handImg, SCREEN);
+  if (!processed) return;
+
+  // Scale hand image to fill canvas
+  const imgAspect = processed.width / processed.height;
   const drawH = ch * 1.02;
   const drawW = drawH * imgAspect;
   const handX = (cw - drawW) / 2;
   const handY = (ch - drawH) / 2;
 
-  // Phone screen rect in canvas coordinates
+  // Screen rect in canvas coordinates
   const sx = handX + SCREEN.x * drawW;
   const sy = handY + SCREEN.y * drawH;
   const sw = SCREEN.w * drawW;
@@ -116,14 +266,14 @@ export function drawHandView(
   ctx.rotate(swayRot);
   ctx.translate(-cw / 2, -ch / 2);
 
-  // 1. Draw the hand image exactly as-is — no processing
-  ctx.drawImage(handImg, handX, handY, drawW, drawH);
-
-  // 2. Draw the video ON TOP, clipped to the phone screen only
+  // --- 2. Video behind hand, clipped to phone screen ---
   if (video.readyState >= 2) {
     ctx.save();
     roundedRect(ctx, sx, sy, sw, sh, sr);
     ctx.clip();
+
+    ctx.fillStyle = "#000";
+    ctx.fillRect(sx, sy, sw, sh);
 
     const vw = video.videoWidth;
     const vh = video.videoHeight;
@@ -147,6 +297,9 @@ export function drawHandView(
     );
     ctx.restore();
   }
+
+  // --- 3. Processed hand on top (white bg removed, screen transparent) ---
+  ctx.drawImage(processed, handX, handY, drawW, drawH);
 
   ctx.restore(); // sway
 }
