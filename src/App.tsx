@@ -286,7 +286,10 @@ function Index() {
     setZoomLockEnabled(true);
   };
 
-  const getEffectiveZoom = (videoTime: number) => {
+  const getEffectiveZoomRef = useRef((videoTime: number) => ({
+    vScale: 1, vOffX: 0, vOffY: 0, hZoom: 1, hPanX: 0, hPanY: 0,
+  }));
+  getEffectiveZoomRef.current = (videoTime: number) => {
     const lock = zoomLockRef.current;
     const live = liveZoomRef.current;
     if (!lock.enabled || videoTime < lock.time) {
@@ -357,7 +360,7 @@ function Index() {
       ctx.clearRect(0, 0, cw, ch);
 
       const vt = video.currentTime || 0;
-      const ez = getEffectiveZoom(vt);
+      const ez = getEffectiveZoomRef.current(vt);
 
       // --- Hand-holding-phone view ---
       if (viewMode === "hand" && video) {
