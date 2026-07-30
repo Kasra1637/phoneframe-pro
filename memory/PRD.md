@@ -41,3 +41,11 @@ screen sliders + reset, floating view, MP4 export/download, zero console errors.
   notch pill {x:0.4208, y:0.0892, w:0.1933, h:0.0317} redrawn over the footage for realism.
 - Verified by testing agent iteration_2: 100% frontend pass (upload, keying, environments, sliders + reset,
   floating view, MP4 export, no console errors).
+
+## Update (2026-06-30, session 3) — hand zoom / pan
+- Fixed right-edge clipping: default framing now fits the whole keyed subject (baseFit = min(cw*0.98/bw, ch*1.0/bh)).
+- Added user-controllable hand transform (only affects arm/hand/phone, never the environment):
+  drag the preview to move, scroll to zoom, plus "Hand size & position" sliders (zoom 0.4–3x, H/V position)
+  and a "Reset hand framing" button. Floating-mode drag/wheel behaviour unchanged.
+- Handheld motion amplitude slightly increased (drift + breathing + micro-tremor) and remains on by default.
+- Testing agent iteration_3: 100% pass; only a cosmetic note that default zoom leaves some background margin.
