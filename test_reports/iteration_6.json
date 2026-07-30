@@ -1,0 +1,18 @@
+{
+  "summary": "MockReel environment swap verified. Env selector now shows exactly 5 options (Living Room, Bedroom, Bright Bedroom, Sunlit Bedroom, Soft Loft). Ocean, Park, Green Bokeh are gone. All 5 thumbnails load real images (naturalWidth=800, complete=true) and each produces a visually distinct blurred background behind the keyed hand (5 unique avg canvas colors sampled from top strip: LivingRoom [37,19,6], Bedroom [92,46,16], BrightBedroom [186,184,185], SunlitBedroom [47,43,35], SoftLoft [135,140,135]). Keyed hand/phone composite is intact (notch preserved, no white leftover, video inside phone display). All regression controls present: hand-zoom/panx/pany/reset, screen-left/top/width/height/reset, hook-toggle, cta-toggle, and Export MP4 button. No console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "seed_data_creation": "Used pre-existing /tmp/test6s.webm (544x1184 VP8, 6s).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Env selector uses button:has(img[alt='<Label>']) selectors. SCREEN POSITION section is collapsed by default — must click its header before screen-reset-btn / screen-*-slider become present in DOM. Export button label is 'Export MP4' (no data-testid), Hook & CTA controls use hook-toggle/cta-toggle testids (not hook-overlay-toggle/end-card-toggle)."
+}

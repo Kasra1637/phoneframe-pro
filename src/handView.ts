@@ -1,9 +1,8 @@
 export type EnvironmentId =
   | "living_room"
   | "bedroom"
-  | "park"
-  | "ocean"
-  | "park_bokeh"
+  | "bedroom_light"
+  | "bedroom_warm"
   | "loft";
 
 export interface EnvironmentOption {
@@ -24,19 +23,14 @@ export const ENVIRONMENTS: EnvironmentOption[] = [
     url: "https://images.pexels.com/photos/5948744/pexels-photo-5948744.jpeg?auto=compress&cs=tinysrgb&h=1200&w=800",
   },
   {
-    id: "park",
-    label: "Park",
-    url: "https://images.pexels.com/photos/13074577/pexels-photo-13074577.jpeg?auto=compress&cs=tinysrgb&h=1200&w=800",
+    id: "bedroom_light",
+    label: "Bright Bedroom",
+    url: "https://images.unsplash.com/photo-1542728929-074c1983ddb8?crop=entropy&cs=srgb&fm=jpg&ixlib=rb-4.1.0&q=85&w=800&h=1200&fit=crop",
   },
   {
-    id: "ocean",
-    label: "Ocean",
-    url: "https://images.unsplash.com/photo-1616159988985-750036b28b40?crop=entropy&cs=srgb&fm=jpg&ixlib=rb-4.1.0&q=85&w=800&h=1200&fit=crop",
-  },
-  {
-    id: "park_bokeh",
-    label: "Green Bokeh",
-    url: "https://images.unsplash.com/photo-1654638748957-20048f8426ac?crop=entropy&cs=srgb&fm=jpg&ixlib=rb-4.1.0&q=85&w=800&h=1200&fit=crop",
+    id: "bedroom_warm",
+    label: "Sunlit Bedroom",
+    url: "https://images.unsplash.com/photo-1635334707415-19b96519f1de?crop=entropy&cs=srgb&fm=jpg&ixlib=rb-4.1.0&q=85&w=800&h=1200&fit=crop",
   },
   {
     id: "loft",
