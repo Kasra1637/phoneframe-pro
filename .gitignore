@@ -36,3 +36,9 @@ dist-ssr
 .env*
 !.env.example
 .env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
