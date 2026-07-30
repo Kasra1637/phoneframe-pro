@@ -296,7 +296,7 @@ function Index() {
   getEffectiveZoomRef.current = (videoTime: number) => {
     const lock = zoomLockRef.current;
     const live = liveZoomRef.current;
-    if (!lock.enabled || videoTime < lock.time) {
+    if (!lock.enabled) {
       return {
         vScale: live.scale,
         vOffX: live.offX,
@@ -305,6 +305,9 @@ function Index() {
         hPanX: live.handPanX,
         hPanY: live.handPanY,
       };
+    }
+    if (videoTime < lock.time) {
+      return { vScale: 1, vOffX: 0, vOffY: 0, hZoom: 1, hPanX: 0, hPanY: 0 };
     }
     return {
       vScale: lock.scale,
