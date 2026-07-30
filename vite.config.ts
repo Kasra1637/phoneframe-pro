@@ -7,6 +7,11 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), tsconfigPaths(), cloudflare()],
+  server: {
+    host: true,
+    port: 3000,
+    allowedHosts: true,
+  },
   build: {
     outDir: "dist",
   },

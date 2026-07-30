@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { drawHandView, preloadHandViewImages, ENVIRONMENTS, type EnvironmentId } from "./handView";
+import { drawHandView, preloadHandViewImages, ENVIRONMENTS, DEFAULT_SCREEN, type EnvironmentId } from "./handView";
 
 export default Index;
 
@@ -128,10 +128,10 @@ function Index() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("floating");
   const [envBg, setEnvBg] = useState<EnvironmentId>("living_room");
-  const [screenX, setScreenX] = useState(0.32);
-  const [screenY, setScreenY] = useState(0.13);
-  const [screenW, setScreenW] = useState(0.36);
-  const [screenH, setScreenH] = useState(0.50);
+  const [screenX, setScreenX] = useState(DEFAULT_SCREEN.x);
+  const [screenY, setScreenY] = useState(DEFAULT_SCREEN.y);
+  const [screenW, setScreenW] = useState(DEFAULT_SCREEN.w);
+  const [screenH, setScreenH] = useState(DEFAULT_SCREEN.h);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -761,7 +761,7 @@ function Index() {
             {/* Screen position (hand view only) */}
             {viewMode === "hand" && (
               <Section title="Screen position">
-                <div className="space-y-2">
+                <div className="space-y-2" data-testid="screen-position-controls">
                   {([
                     ["Left", screenX, setScreenX],
                     ["Top", screenY, setScreenY],
@@ -772,16 +772,30 @@ function Index() {
                       <span className="w-11 shrink-0 text-[11px] text-white/50">{label}</span>
                       <input
                         type="range"
+                        data-testid={`screen-${label.toLowerCase()}-slider`}
                         min={0}
                         max={1}
-                        step={0.01}
+                        step={0.001}
                         value={val}
                         onChange={(e) => (setter as (v: number) => void)(parseFloat(e.target.value))}
                         className="h-1 flex-1 cursor-pointer accent-white"
                       />
-                      <span className="w-8 text-right text-[10px] tabular-nums text-white/40">{Math.round(val * 100)}%</span>
+                      <span className="w-8 text-right text-[10px] tabular-nums text-white/40">{(val * 100).toFixed(1)}</span>
                     </div>
                   ))}
+                  <button
+                    type="button"
+                    data-testid="screen-reset-btn"
+                    onClick={() => {
+                      setScreenX(DEFAULT_SCREEN.x);
+                      setScreenY(DEFAULT_SCREEN.y);
+                      setScreenW(DEFAULT_SCREEN.w);
+                      setScreenH(DEFAULT_SCREEN.h);
+                    }}
+                    className="text-[10px] text-white/50 hover:text-white"
+                  >
+                    Reset to photo screen
+                  </button>
                 </div>
               </Section>
             )}

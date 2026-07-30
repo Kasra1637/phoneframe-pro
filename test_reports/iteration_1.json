@@ -1,0 +1,22 @@
+{
+  "summary": "Frontend regression tested MockReel Vite+React canvas app end-to-end. Uploaded /tmp/test.webm (544x1184, 2s). Verified: metadata shown; canvas renders; Hand Holding view shows the real stock photo hand+iPhone with the uploaded video drawn only inside the phone's real black screen area — no duplicate/overlaid phone frame, hand and phone body remain clean (no transparent holes or speckles), environment blurs correctly behind the keyed hand; Environment selector Living Room / Bedroom / Park all switch backgrounds; Screen Position sliders (all four data-testids present) update the video region, and the 'Reset to photo screen' button restores the calibrated defaults (Left 0.363, Top 0.239, Width 0.354, Height 0.467 — matches DEFAULT_SCREEN 0.3625/0.2390/0.3538/0.4667 within slider step 0.001); Floating Phone view still renders (canvas color diversity confirmed animation running); Export in Hand Holding mode succeeded → produced downloadable MP4 (mockreel-s24-tiktok-1080x1920.mp4, ~0.05 MB) with in-page result <video> preview. Zero console warnings, zero page errors throughout.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "App.tsx is ~1200 lines and mixes UI, drawing loop, animation code, and export/audio logic — consider splitting drawPhone/animation branches into modules for maintainability.",
+    "handView.ts getKeyedHand runs a full per-pixel border flood fill + 2-pass feather on every image the first time. It's cached, so fine at runtime, but the initial keying blocks the first frame briefly (~a few hundred ms for 800x1200). Consider running it in a Web Worker or OffscreenCanvas if hand photo gets larger.",
+    "COLOR_PALETTES lookup uses palette.glow.replace(/[\\d.]+\\)$/, '1)') repeatedly per frame — cheap but could be precomputed once per palette to avoid regex churn."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (no backend)", "frontend": "100%"},
+  "seed_data_creation": "Used pre-existing /tmp/test.webm (544x1184, 2s VP8) as instructed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Screen Position section is collapsed by default — must click its header before its data-testid sliders (screen-left-slider etc.) appear in the DOM. The Export button in the sidebar shares a text prefix with the 'EXPORT FORMAT' section header; use selector 'aside button.w-full.rounded-xl' or 'button:has-text(\"Export MP4\")' (exact) to disambiguate. File input has class 'hidden' — use page.set_input_files directly, don't wait_for visibility. Headless chromium supported MP4 export in this env; recording completed for the 2s clip in ~2s."
+}
