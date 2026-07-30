@@ -24,8 +24,8 @@ export const ENVIRONMENTS: EnvironmentOption[] = [
   },
 ];
 
-// Pexels 2207799 by Gije Cho — light-skinned hand holding a smartphone
-// with blank screen against a white background, hand from bottom-right.
+// Pexels 2207799 by Gije Cho — light-skinned hand holding smartphone,
+// blank screen, white background, hand from bottom-right.
 const HAND_IMAGE_URL =
   "https://images.pexels.com/photos/2207799/pexels-photo-2207799.jpeg?auto=compress&cs=tinysrgb&h=1200&w=800";
 
@@ -36,17 +36,17 @@ export interface ScreenOverride {
   h: number;
 }
 
-// Phone screen region (normalized 0..1) for 2207799.
-// The phone is held from the right side; screen is roughly centered
-// horizontally and takes up most of the upper portion of the image.
+// Phone screen region (normalized 0..1) for photo 2207799.
+// This is an older iPhone with bezels and a home button.
+// The screen sits inside the phone body, offset by bezels on all sides.
 const DEFAULT_SCREEN: ScreenOverride = {
-  x: 0.22,
-  y: 0.06,
-  w: 0.42,
-  h: 0.58,
+  x: 0.30,
+  y: 0.12,
+  w: 0.40,
+  h: 0.52,
 };
 
-const SCREEN_RADIUS_NORM = 0.03;
+const SCREEN_RADIUS_NORM = 0.012;
 
 const imageCache = new Map<string, HTMLImageElement>();
 
@@ -67,123 +67,6 @@ export function preloadHandViewImages() {
   for (const env of ENVIRONMENTS) loadImage(env.url);
 }
 
-// Cache keyed by image + screen region so sliders invalidate properly
-let processedCache: {
-  src: HTMLImageElement;
-  key: string;
-  canvas: HTMLCanvasElement;
-} | null = null;
-
-function screenKey(s: ScreenOverride): string {
-  return `${s.x.toFixed(3)}_${s.y.toFixed(3)}_${s.w.toFixed(3)}_${s.h.toFixed(3)}`;
-}
-
-function getProcessedHand(
-  img: HTMLImageElement,
-  screen: ScreenOverride,
-): HTMLCanvasElement | null {
-  const sk = screenKey(screen);
-  if (processedCache && processedCache.src === img && processedCache.key === sk) {
-    return processedCache.canvas;
-  }
-
-  const w = img.naturalWidth;
-  const h = img.naturalHeight;
-  const c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  const octx = c.getContext("2d", { willReadFrequently: true });
-  if (!octx) return null;
-
-  octx.drawImage(img, 0, 0);
-
-  const id = octx.getImageData(0, 0, w, h);
-  const d = id.data;
-
-  // Screen bounding box in pixels
-  const scrL = Math.floor(screen.x * w);
-  const scrT = Math.floor(screen.y * h);
-  const scrR = Math.ceil((screen.x + screen.w) * w);
-  const scrB = Math.ceil((screen.y + screen.h) * h);
-
-  // Shrink screen rect slightly so we don't eat into the bezel
-  const insetX = Math.round((scrR - scrL) * 0.04);
-  const insetY = Math.round((scrB - scrT) * 0.02);
-  const iL = scrL + insetX;
-  const iR = scrR - insetX;
-  const iT = scrT + insetY;
-  const iB = scrB - insetY;
-
-  for (let py = 0; py < h; py++) {
-    for (let px = 0; px < w; px++) {
-      const i = (py * w + px) * 4;
-      const r = d[i], g = d[i + 1], b = d[i + 2];
-      const luma = r * 0.299 + g * 0.587 + b * 0.114;
-      const sat = Math.max(r, g, b) - Math.min(r, g, b);
-
-      const inScreen = px >= iL && px <= iR && py >= iT && py <= iB;
-
-      if (inScreen) {
-        // Punch out the screen area — remove white/light pixels
-        if (luma > 120 && sat < 70) {
-          d[i + 3] = 0;
-        } else if (luma > 80) {
-          const t = Math.min(1, Math.max(0, (luma - 80) / 40));
-          d[i + 3] = Math.round(d[i + 3] * (1 - t));
-        }
-      } else {
-        // Outside screen: remove white/light-gray background
-        // Use gentler thresholds to preserve skin tones
-        if (luma > 235 && sat < 25) {
-          d[i + 3] = 0;
-        } else if (luma > 210 && sat < 35) {
-          const t = (luma - 210) / 25;
-          d[i + 3] = Math.round(d[i + 3] * Math.max(0, 1 - t));
-        }
-      }
-    }
-  }
-
-  // Gentle edge feathering — only on outer edges, not aggressive
-  const ePct = 0.04;
-  const topEnd = Math.floor(h * ePct);
-  for (let y = 0; y < topEnd; y++) {
-    const a = y / topEnd;
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      d[i + 3] = Math.round(d[i + 3] * a);
-    }
-  }
-  const botStart = Math.floor(h * (1 - ePct));
-  for (let y = botStart; y < h; y++) {
-    const a = (h - y) / (h - botStart);
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      d[i + 3] = Math.round(d[i + 3] * a);
-    }
-  }
-  const leftEnd = Math.floor(w * ePct);
-  for (let x = 0; x < leftEnd; x++) {
-    const a = x / leftEnd;
-    for (let y = 0; y < h; y++) {
-      const i = (y * w + x) * 4;
-      d[i + 3] = Math.round(d[i + 3] * a);
-    }
-  }
-  const rightStart = Math.floor(w * (1 - ePct));
-  for (let x = rightStart; x < w; x++) {
-    const a = (w - x) / (w - rightStart);
-    for (let y = 0; y < h; y++) {
-      const i = (y * w + x) * 4;
-      d[i + 3] = Math.round(d[i + 3] * a);
-    }
-  }
-
-  octx.putImageData(id, 0, 0);
-  processedCache = { src: img, key: sk, canvas: c };
-  return c;
-}
-
 export function drawHandView(
   ctx: CanvasRenderingContext2D,
   cw: number,
@@ -202,7 +85,7 @@ export function drawHandView(
   const bgImg = loadImage(env.url);
   const handImg = loadImage(HAND_IMAGE_URL);
 
-  // Subtle sway
+  // Subtle sway animation
   const swayX =
     Math.sin(time * 0.7) * cw * 0.003 + Math.sin(time * 1.9) * cw * 0.001;
   const swayY =
@@ -210,14 +93,13 @@ export function drawHandView(
   const swayRot =
     Math.sin(time * 0.5) * 0.004 + Math.sin(time * 1.4) * 0.002;
 
-  // --- 1. Environment background (clear, not heavily blurred) ---
+  // --- 1. Environment background ---
   ctx.save();
   if (bgImg) {
     const bgScale =
       Math.max(cw / bgImg.naturalWidth, ch / bgImg.naturalHeight) * 1.08;
     const bw = bgImg.naturalWidth * bgScale;
     const bh = bgImg.naturalHeight * bgScale;
-    // Light blur for depth-of-field feel, not a smudgy mess
     ctx.filter = "blur(4px) brightness(0.75) saturate(0.95)";
     ctx.drawImage(bgImg, (cw - bw) / 2, (ch - bh) / 2, bw, bh);
     ctx.filter = "none";
@@ -233,14 +115,6 @@ export function drawHandView(
   }
   ctx.restore();
 
-  // Very subtle warm overlay (barely visible)
-  ctx.save();
-  ctx.globalAlpha = 0.04;
-  ctx.fillStyle = "#1a1008";
-  ctx.fillRect(0, 0, cw, ch);
-  ctx.globalAlpha = 1;
-  ctx.restore();
-
   if (!handImg) {
     ctx.fillStyle = "rgba(255,255,255,0.3)";
     ctx.font = `${Math.round(cw * 0.025)}px sans-serif`;
@@ -249,11 +123,8 @@ export function drawHandView(
     return;
   }
 
-  const processed = getProcessedHand(handImg, SCREEN);
-  if (!processed) return;
-
-  // Scale hand to fill canvas height
-  const imgAspect = processed.width / processed.height;
+  // Scale hand image to fill the canvas
+  const imgAspect = handImg.naturalWidth / handImg.naturalHeight;
   const drawH = ch * 1.02;
   const drawW = drawH * imgAspect;
   const handX = (cw - drawW) / 2;
@@ -266,18 +137,54 @@ export function drawHandView(
   const sh = SCREEN.h * drawH;
   const sr = SCREEN_RADIUS_NORM * drawW;
 
-  // --- Apply sway transform ---
+  // --- Apply sway ---
   ctx.save();
   ctx.translate(cw / 2 + swayX, ch / 2 + swayY);
   ctx.rotate(swayRot);
   ctx.translate(-cw / 2, -ch / 2);
 
-  // --- 2. Draw video into phone screen (BEHIND the hand layer) ---
+  // --- 2. Draw the hand photo directly (NO pixel manipulation) ---
+  // Use a radial gradient mask to fade the photo's white edges
+  // into the dark environment background.
+  ctx.save();
+
+  // Create an offscreen canvas to apply the edge fade
+  const offscreen = document.createElement("canvas");
+  offscreen.width = cw;
+  offscreen.height = ch;
+  const offCtx = offscreen.getContext("2d");
+  if (offCtx) {
+    // Draw hand onto offscreen
+    offCtx.drawImage(handImg, handX, handY, drawW, drawH);
+
+    // Apply a radial gradient mask to fade edges
+    offCtx.globalCompositeOperation = "destination-in";
+    const mask = offCtx.createRadialGradient(
+      cw / 2, ch * 0.45, Math.min(cw, ch) * 0.2,
+      cw / 2, ch * 0.45, Math.min(cw, ch) * 0.55,
+    );
+    mask.addColorStop(0, "rgba(0,0,0,1)");
+    mask.addColorStop(0.7, "rgba(0,0,0,1)");
+    mask.addColorStop(0.9, "rgba(0,0,0,0.5)");
+    mask.addColorStop(1, "rgba(0,0,0,0)");
+    offCtx.fillStyle = mask;
+    offCtx.fillRect(0, 0, cw, ch);
+
+    // Draw the masked hand onto main canvas
+    ctx.drawImage(offscreen, 0, 0);
+  } else {
+    // Fallback: draw directly without mask
+    ctx.drawImage(handImg, handX, handY, drawW, drawH);
+  }
+  ctx.restore();
+
+  // --- 3. Draw video ON TOP, clipped to the phone screen area ---
   if (video.readyState >= 2) {
     ctx.save();
     roundedRect(ctx, sx, sy, sw, sh, sr);
     ctx.clip();
 
+    // Black fill behind video
     ctx.fillStyle = "#000";
     ctx.fillRect(sx, sy, sw, sh);
 
@@ -304,17 +211,11 @@ export function drawHandView(
     ctx.restore();
   }
 
-  // --- 3. Hand image ON TOP (bg + screen punched out, video shows through) ---
-  ctx.drawImage(processed, handX, handY, drawW, drawH);
-
   // --- Glass reflection on screen ---
   ctx.save();
   roundedRect(ctx, sx, sy, sw, sh, sr);
   ctx.clip();
-  const sheen = ctx.createLinearGradient(
-    sx, sy,
-    sx + sw * 0.6, sy + sh * 0.6,
-  );
+  const sheen = ctx.createLinearGradient(sx, sy, sx + sw * 0.6, sy + sh * 0.6);
   sheen.addColorStop(0, "rgba(255,255,255,0.05)");
   sheen.addColorStop(0.3, "rgba(255,255,255,0.015)");
   sheen.addColorStop(1, "rgba(255,255,255,0)");
@@ -324,7 +225,7 @@ export function drawHandView(
 
   ctx.restore(); // sway
 
-  // --- 4. Subtle vignette ---
+  // --- 4. Vignette ---
   ctx.save();
   const vig = ctx.createRadialGradient(
     cw / 2, ch / 2, Math.min(cw, ch) * 0.35,
