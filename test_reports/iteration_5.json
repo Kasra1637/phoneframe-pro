@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend-only verification of MockReel hook + end-card overlays. All 12 requirement checks pass. Uploaded 6s and 2s WebM clips, tested in Hand-Holding + Floating views, verified punch-in animation, safe-area respect (right icon rail + bottom caption strip clean), all hook/cta data-testid controls, four accent swatches, and short-clip 45%-window guard. Rendered output is baked into the canvas so MediaRecorder export path unchanged from previous passing iterations.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_evidence": {
+    "hook_at_t0.05_in_6s_clip": "punch-in early stage (alpha~0.22, white>=230 pixels=0) — expected, animation starting",
+    "hook_at_t0.5_in_6s_clip": "settled (white>=230 pixels=87611) — fully rendered on dark pill with lime underline",
+    "hook_gone_at_t3.0_in_6s_clip": "top-strip white pixels drop to 0 — overlay removed after 1.8s duration",
+    "end_card_at_t5.0_in_6s_clip": "bottom-left has headline text + accent handle chip (accent=34377, white=18440)",
+    "safe_area_right_rail_delta_t5_vs_t3": "0 white pixels — no overlay content in right 22% of width",
+    "safe_area_bottom_strip_delta_t5_vs_t3": "13 white pixels (noise) — bottom caption strip clean",
+    "hook_toggle": "on white=87611 -> off white=0",
+    "hook_text_input": "live update confirmed after fill",
+    "hook_duration_slider": "set to 0.8s -> hook gone at t=1.0",
+    "cta_headline_and_handle_inputs": "live update confirmed",
+    "accent_swatches": "pink swatch -> pink pixels 27678; blue -> blue 27177; green -> accent-green 30425 (each color exclusive)",
+    "cta_toggle": "on botLeft white=24743 -> off=0",
+    "cta_duration_slider": "set to 1s -> CTA absent at t=4.5, present at t=5.5",
+    "floating_regression": "hook top white=87612, cta botLeft white=24743 — overlays render identically in Floating Phone view",
+    "short_clip_2s_guard": "at t=0.2 only hook visible (verified via screenshot; pixel counter under-reported due to tight >230 threshold vs punch-in alpha); at t=1.5 only CTA visible (top white=0, botLeft white=18440)",
+    "canvas_dimensions": "1080x1920 TikTok preset"
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "App.tsx is now ~1400 lines — consider splitting Sidebar controls, drawPhone/drawOverlays/drawFloatingScene, and the export logic into separate modules for maintainability.",
+    "In drawEndCard, timeLeft can be negative if video played past duration (loop) — the early return handles it, but a small guard on video.currentTime > duration would avoid the transient overlap during the loop wrap frame.",
+    "Overlay accent state (overlayAccent) is shared by hook underline and cta — the request only mentions changing accent from the CTA panel. Docs note is fine, but hook underline color also flips silently. Consider surfacing that visually or splitting into two accents."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "none required",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Pixel-region sampling of overlays is unreliable during the punch-in animation (alpha < 1 on dark pills makes white pixels come out ~226, below the >230 threshold). Use screenshots or lower the whiteness threshold (>=200) to detect punch-in mid-animation. Video preview element is document.querySelector('video'); pause+seek pattern works for deterministic overlay timing."
+}

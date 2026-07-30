@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { drawHandView, preloadHandViewImages, ENVIRONMENTS, DEFAULT_SCREEN, type EnvironmentId } from "./handView";
+import { drawHookOverlay, drawEndCard, HOOK_FONT } from "./overlays";
 
 export default Index;
 
@@ -135,6 +136,14 @@ function Index() {
   const [handZoom, setHandZoom] = useState(1);
   const [handPanX, setHandPanX] = useState(0);
   const [handPanY, setHandPanY] = useState(0);
+  const [hookEnabled, setHookEnabled] = useState(true);
+  const [hookText, setHookText] = useState("I built this so I'd stop journaling in Notes app");
+  const [hookDuration, setHookDuration] = useState(1.8);
+  const [ctaEnabled, setCtaEnabled] = useState(true);
+  const [ctaHeadline, setCtaHeadline] = useState("Try it free — link in bio");
+  const [ctaHandle, setCtaHandle] = useState("@yourhandle");
+  const [ctaDuration, setCtaDuration] = useState(2);
+  const [overlayAccent, setOverlayAccent] = useState("#c8ff2e");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -144,6 +153,11 @@ function Index() {
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
   useEffect(() => { preloadHandViewImages(); }, []);
+
+  // Make sure the display font is ready before it is painted onto the canvas.
+  useEffect(() => {
+    document.fonts?.load(`700 100px ${HOOK_FONT}`).catch(() => {});
+  }, []);
 
   const handleFile = (file: File) => {
     setError(null);
@@ -198,6 +212,25 @@ function Index() {
     canvas.width = cw;
     canvas.height = ch;
 
+    const drawOverlays = () => {
+      const vt = video.currentTime || 0;
+      const dur = videoMeta.d || 0;
+      // On very short clips, shrink the windows so hook and end card never collide.
+      const hookWindow = dur > 0 ? Math.min(hookDuration, dur * 0.45) : hookDuration;
+      const ctaWindow = dur > 0 ? Math.min(ctaDuration, dur * 0.45) : ctaDuration;
+      if (hookEnabled) {
+        drawHookOverlay(ctx, cw, ch, vt, { text: hookText, duration: hookWindow, accent: overlayAccent });
+      }
+      if (ctaEnabled && dur > 0) {
+        drawEndCard(ctx, cw, ch, dur - vt, {
+          headline: ctaHeadline,
+          handle: ctaHandle,
+          duration: ctaWindow,
+          accent: overlayAccent,
+        });
+      }
+    };
+
     const draw = () => {
       ctx.clearRect(0, 0, cw, ch);
 
@@ -205,6 +238,7 @@ function Index() {
       if (viewMode === "hand" && video) {
         const t = performance.now() / 1000;
         drawHandView(ctx, cw, ch, video, envBg, t, videoFit, videoScale, videoOffsetX, videoOffsetY, { x: screenX, y: screenY, w: screenW, h: screenH }, handZoom, handPanX, handPanY);
+        drawOverlays();
         rafRef.current = requestAnimationFrame(draw);
         return;
       }
@@ -528,6 +562,7 @@ function Index() {
         const y = (ch - drawH) / 2;
         drawPhone(ctx, x, y, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor);
       }
+      drawOverlays();
       rafRef.current = requestAnimationFrame(draw);
     };
     rafRef.current = requestAnimationFrame(draw);
@@ -535,7 +570,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg, screenX, screenY, screenW, screenH, handZoom, handPanX, handPanY]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg, screenX, screenY, screenW, screenH, handZoom, handPanX, handPanY, hookEnabled, hookText, hookDuration, ctaEnabled, ctaHeadline, ctaHandle, ctaDuration, overlayAccent]);
 
 
   const exportVideo = async () => {
@@ -990,6 +1025,102 @@ function Index() {
               </div>
             </Section>
             )}
+
+            {/* TikTok hook overlay */}
+            <Section title="Hook text (first seconds)" defaultOpen={true}>
+              <div className="space-y-2" data-testid="hook-controls">
+                <label className="flex items-center gap-2 text-[11px] text-white/60">
+                  <input
+                    type="checkbox"
+                    data-testid="hook-toggle"
+                    checked={hookEnabled}
+                    onChange={(e) => setHookEnabled(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-white"
+                  />
+                  Show punch-in hook on frame 1
+                </label>
+                <textarea
+                  data-testid="hook-text-input"
+                  value={hookText}
+                  onChange={(e) => setHookText(e.target.value)}
+                  rows={3}
+                  placeholder="I built this so I'd stop journaling in Notes app"
+                  className="w-full resize-none rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[12px] leading-snug text-white outline-none transition hover:border-white/30 focus:border-white/60"
+                />
+                <div>
+                  <label className="text-[10px] text-white/40">On screen: {hookDuration.toFixed(1)}s</label>
+                  <input
+                    type="range"
+                    data-testid="hook-duration-slider"
+                    min={0.8}
+                    max={4}
+                    step={0.1}
+                    value={hookDuration}
+                    onChange={(e) => setHookDuration(Number(e.target.value))}
+                    className="h-1 w-full cursor-pointer accent-white"
+                  />
+                </div>
+              </div>
+            </Section>
+
+            {/* TikTok end card CTA */}
+            <Section title="End card CTA (TikTok)" defaultOpen={true}>
+              <div className="space-y-2" data-testid="cta-controls">
+                <label className="flex items-center gap-2 text-[11px] text-white/60">
+                  <input
+                    type="checkbox"
+                    data-testid="cta-toggle"
+                    checked={ctaEnabled}
+                    onChange={(e) => setCtaEnabled(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-white"
+                  />
+                  Show lead-gen end card
+                </label>
+                <input
+                  data-testid="cta-headline-input"
+                  value={ctaHeadline}
+                  onChange={(e) => setCtaHeadline(e.target.value)}
+                  placeholder="Try it free — link in bio"
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[12px] text-white outline-none transition hover:border-white/30 focus:border-white/60"
+                />
+                <input
+                  data-testid="cta-handle-input"
+                  value={ctaHandle}
+                  onChange={(e) => setCtaHandle(e.target.value)}
+                  placeholder="@yourhandle"
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[12px] text-white outline-none transition hover:border-white/30 focus:border-white/60"
+                />
+                <div>
+                  <label className="text-[10px] text-white/40">Last {ctaDuration.toFixed(1)}s of the video</label>
+                  <input
+                    type="range"
+                    data-testid="cta-duration-slider"
+                    min={1}
+                    max={5}
+                    step={0.1}
+                    value={ctaDuration}
+                    onChange={(e) => setCtaDuration(Number(e.target.value))}
+                    className="h-1 w-full cursor-pointer accent-white"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-white/40">Accent</span>
+                  {["#c8ff2e", "#ff4d8d", "#4dd8ff", "#ffffff"].map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      data-testid={`overlay-accent-${c.replace("#", "")}`}
+                      onClick={() => setOverlayAccent(c)}
+                      style={{ background: c }}
+                      className={`h-5 w-5 rounded-full border-2 transition ${overlayAccent === c ? "border-white ring-1 ring-white" : "border-white/20 hover:border-white/50"}`}
+                    />
+                  ))}
+                </div>
+                <div className="text-[10px] leading-snug text-white/35">
+                  Laid out inside TikTok's safe area — clear of the right icon rail and bottom caption strip.
+                </div>
+              </div>
+            </Section>
 
             {/* Export Format */}
             <Section title="Export format">
