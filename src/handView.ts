@@ -24,8 +24,10 @@ export const ENVIRONMENTS: EnvironmentOption[] = [
   },
 ];
 
+// Woman's arm / wrist / hand holding a modern black phone, shot on a seamless white
+// studio backdrop so the backdrop can be keyed out cleanly.
 const HAND_IMAGE_URL =
-  "https://images.pexels.com/photos/2207799/pexels-photo-2207799.jpeg?auto=compress&cs=tinysrgb&h=1200&w=800";
+  "https://images.unsplash.com/photo-1691256676376-357c3aa66c89?crop=entropy&cs=srgb&fm=jpg&ixlib=rb-4.1.0&q=85&w=1200";
 
 export interface ScreenOverride {
   x: number;
@@ -34,15 +36,17 @@ export interface ScreenOverride {
   h: number;
 }
 
-// Measured directly from the stock photo's black screen area (normalized).
+// Measured from the photo: the phone's real display area (normalized to image size).
 export const DEFAULT_SCREEN: ScreenOverride = {
-  x: 0.3625,
-  y: 0.239,
-  w: 0.3538,
-  h: 0.4667,
+  x: 0.3275,
+  y: 0.09,
+  w: 0.3608,
+  h: 0.7708,
 };
 
-const SCREEN_RADIUS_NORM = 0.006;
+// Display corner radius and the notch cut-out, both measured from the same photo.
+const SCREEN_RADIUS_NORM = 0.032;
+const NOTCH = { x: 0.4208, y: 0.0892, w: 0.1933, h: 0.0317 };
 
 const imageCache = new Map<string, HTMLImageElement>();
 
@@ -63,15 +67,23 @@ export function preloadHandViewImages() {
   for (const env of ENVIRONMENTS) loadImage(env.url);
 }
 
-let keyedHandCache: { src: HTMLImageElement; canvas: HTMLCanvasElement } | null = null;
+interface KeyedHand {
+  canvas: HTMLCanvasElement;
+  // Bounding box of the remaining subject (arm + hand + phone), in pixels.
+  bx: number;
+  by: number;
+  bw: number;
+  bh: number;
+}
+
+let keyedHandCache: { src: HTMLImageElement; result: KeyedHand } | null = null;
 
 /**
- * Removes only the seamless studio backdrop using a border flood fill with a tight
- * local tolerance. Hand, phone body and screen pixels are never touched, so the
- * photo itself stays completely undistorted.
+ * Removes only the seamless studio backdrop with a border flood fill using a tight local
+ * tolerance, so skin, phone body and display pixels stay exactly as shot (no distortion).
  */
-function getKeyedHand(img: HTMLImageElement): HTMLCanvasElement | null {
-  if (keyedHandCache?.src === img) return keyedHandCache.canvas;
+function getKeyedHand(img: HTMLImageElement): KeyedHand | null {
+  if (keyedHandCache?.src === img) return keyedHandCache.result;
 
   const w = img.naturalWidth;
   const h = img.naturalHeight;
@@ -88,49 +100,32 @@ function getKeyedHand(img: HTMLImageElement): HTMLCanvasElement | null {
   const d = imageData.data;
   const n = w * h;
 
-  // Phone body silhouette (normalized, measured from the photo) is never keyed out —
-  // its white front panel would otherwise be mistaken for the studio backdrop.
-  const bodyL = 0.335 * w, bodyR = 0.755 * w;
-  const bodyT = 0.1594 * h, bodyB = 0.7835 * h;
-  const bodyR2 = 0.055 * w;
-  const insideBody = (x: number, y: number) => {
-    if (x < bodyL || x > bodyR || y < bodyT || y > bodyB) return false;
-    const cx = x < bodyL + bodyR2 ? bodyL + bodyR2 : x > bodyR - bodyR2 ? bodyR - bodyR2 : x;
-    const cy = y < bodyT + bodyR2 ? bodyT + bodyR2 : y > bodyB - bodyR2 ? bodyB - bodyR2 : y;
-    if (cx === x || cy === y) return true;
-    const dx = x - cx, dy = y - cy;
-    return dx * dx + dy * dy <= bodyR2 * bodyR2;
-  };
-
   const luma = new Float32Array(n);
   const candidate = new Uint8Array(n);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
-      const l = r * 0.299 + g * 0.587 + b * 0.114;
-      luma[i] = l;
-      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-      candidate[i] = l > 170 && chroma < 20 && !insideBody(x, y) ? 1 : 0;
-    }
+  for (let i = 0; i < n; i++) {
+    const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+    const l = r * 0.299 + g * 0.587 + b * 0.114;
+    luma[i] = l;
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    candidate[i] = l > 170 && chroma < 25 ? 1 : 0;
   }
 
   const filled = new Uint8Array(n);
   const stack = new Int32Array(n);
   let sp = 0;
-  const push = (idx: number) => {
+  const seed = (idx: number) => {
     if (candidate[idx] && !filled[idx]) {
       filled[idx] = 1;
       stack[sp++] = idx;
     }
   };
   for (let x = 0; x < w; x++) {
-    push(x);
-    push((h - 1) * w + x);
+    seed(x);
+    seed((h - 1) * w + x);
   }
   for (let y = 0; y < h; y++) {
-    push(y * w);
-    push(y * w + w - 1);
+    seed(y * w);
+    seed(y * w + w - 1);
   }
 
   while (sp > 0) {
@@ -138,7 +133,7 @@ function getKeyedHand(img: HTMLImageElement): HTMLCanvasElement | null {
     const y = (idx / w) | 0;
     const x = idx - y * w;
     const l = luma[idx];
-    const tryNeighbor = (nx: number, ny: number) => {
+    const step = (nx: number, ny: number) => {
       if (nx < 0 || ny < 0 || nx >= w || ny >= h) return;
       const ni = ny * w + nx;
       if (!candidate[ni] || filled[ni]) return;
@@ -146,13 +141,13 @@ function getKeyedHand(img: HTMLImageElement): HTMLCanvasElement | null {
       filled[ni] = 1;
       stack[sp++] = ni;
     };
-    tryNeighbor(x + 1, y);
-    tryNeighbor(x - 1, y);
-    tryNeighbor(x, y + 1);
-    tryNeighbor(x, y - 1);
+    step(x + 1, y);
+    step(x - 1, y);
+    step(x, y + 1);
+    step(x, y - 1);
   }
 
-  // Close tiny holes (specular highlights on skin/nails caught by the fill).
+  // Close pinholes (specular highlights on skin/nails caught by the fill).
   for (let pass = 0; pass < 2; pass++) {
     const snapshot = filled.slice();
     for (let y = 1; y < h - 1; y++) {
@@ -171,7 +166,7 @@ function getKeyedHand(img: HTMLImageElement): HTMLCanvasElement | null {
     }
   }
 
-  // 1px feather so edges don't alias against the environment.
+  // Feather the matte by 1px so edges don't alias against the environment.
   let alpha = new Float32Array(n);
   for (let i = 0; i < n; i++) alpha[i] = filled[i] ? 0 : 1;
   for (let pass = 0; pass < 2; pass++) {
@@ -195,11 +190,31 @@ function getKeyedHand(img: HTMLImageElement): HTMLCanvasElement | null {
     alpha = next;
   }
 
-  for (let i = 0; i < n; i++) d[i * 4 + 3] = Math.round(Math.min(1, alpha[i]) * 255);
+  let minX = w, minY = h, maxX = 0, maxY = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const a = Math.min(1, alpha[i]);
+      d[i * 4 + 3] = Math.round(a * 255);
+      if (a > 0.5) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
 
   octx.putImageData(imageData, 0, 0);
-  keyedHandCache = { src: img, canvas: c };
-  return c;
+  const result: KeyedHand = {
+    canvas: c,
+    bx: minX,
+    by: minY,
+    bw: Math.max(1, maxX - minX),
+    bh: Math.max(1, maxY - minY),
+  };
+  keyedHandCache = { src: img, result };
+  return result;
 }
 
 export function drawHandView(
@@ -222,7 +237,7 @@ export function drawHandView(
 
   ctx.clearRect(0, 0, cw, ch);
 
-  // --- 1. Environment background, drawn once at native aspect (no stretching) ---
+  // --- 1. Environment background, native aspect, softly blurred for depth ---
   if (bgImg) {
     const bgScale = Math.max(cw / bgImg.naturalWidth, ch / bgImg.naturalHeight);
     const bw = bgImg.naturalWidth * bgScale;
@@ -247,13 +262,12 @@ export function drawHandView(
   const hand = getKeyedHand(handImg);
   if (!hand) return;
 
-  // Uniform cover fit — aspect ratio preserved, never stretched.
-  const handAspect = hand.width / hand.height;
-  const fit = Math.max(cw / hand.width, ch / hand.height);
-  const drawH = hand.height * fit;
-  const drawW = drawH * handAspect;
-  const handX = (cw - drawW) / 2;
-  const handY = (ch - drawH) / 2;
+  // Uniform scale (never stretched): frame the keyed subject, arm running off the bottom.
+  const fit = Math.min((cw * 1.04) / hand.bw, (ch * 1.02) / hand.bh);
+  const drawW = hand.canvas.width * fit;
+  const drawH = hand.canvas.height * fit;
+  const handX = cw / 2 - (hand.bx + hand.bw / 2) * fit;
+  const handY = ch - (hand.by + hand.bh) * fit;
 
   // --- Natural handheld motion: slow drift + breathing + micro tremor ---
   const driftX =
@@ -267,19 +281,16 @@ export function drawHandView(
     Math.sin(time * 4.3 + 0.4) * 0.0004;
   const breathe = 1 + Math.sin(time * 0.37) * 0.004;
 
-  const offX = driftX * cw * 0.006;
-  const offY = driftY * ch * 0.005;
-
   ctx.save();
-  ctx.translate(cw / 2 + offX, ch / 2 + offY);
+  ctx.translate(cw / 2 + driftX * cw * 0.006, ch / 2 + driftY * ch * 0.005);
   ctx.rotate(rot);
   ctx.scale(breathe, breathe);
   ctx.translate(-cw / 2, -ch / 2);
 
-  // --- 2. Untouched stock photo (only backdrop keyed out) ---
-  ctx.drawImage(hand, handX, handY, drawW, drawH);
+  // --- 2. The stock photo itself (only the backdrop keyed away) ---
+  ctx.drawImage(hand.canvas, handX, handY, drawW, drawH);
 
-  // --- 3. Uploaded video, clipped to the photo's real screen area ---
+  // --- 3. Uploaded video, clipped to the phone's real display area ---
   const sx = handX + SCREEN.x * drawW;
   const sy = handY + SCREEN.y * drawH;
   const sw = SCREEN.w * drawW;
@@ -295,28 +306,40 @@ export function drawHandView(
 
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    let base: number;
-    if (videoFit === "contain") base = Math.min(sw / vw, sh / vh);
-    else base = Math.max(sw / vw, sh / vh);
-
     let dw: number;
     let dh: number;
     if (videoFit === "fill") {
-      // Only "fill" intentionally stretches; keep it exact to the screen box.
       dw = sw;
       dh = sh;
     } else {
+      const base = videoFit === "contain"
+        ? Math.min(sw / vw, sh / vh)
+        : Math.max(sw / vw, sh / vh);
       const s = base * videoScale;
       dw = vw * s;
       dh = vh * s;
     }
-    const maxOx = Math.max(0, (dw - sw) / 2);
-    const maxOy = Math.max(0, (dh - sh) / 2);
-    const ox = (videoOffsetX / 100) * maxOx;
-    const oy = (videoOffsetY / 100) * maxOy;
+    const ox = (videoOffsetX / 100) * Math.max(0, (dw - sw) / 2);
+    const oy = (videoOffsetY / 100) * Math.max(0, (dh - sh) / 2);
     ctx.drawImage(video, sx + (sw - dw) / 2 + ox, sy + (sh - dh) / 2 + oy, dw, dh);
 
-    // Soft screen glass sheen, kept very light so colors stay true.
+    // Keep the phone's notch reading on top of the footage.
+    const nx = handX + NOTCH.x * drawW;
+    const ny = handY + NOTCH.y * drawH;
+    const nw = NOTCH.w * drawW;
+    const nh = NOTCH.h * drawH;
+    ctx.fillStyle = "#0a0a0c";
+    ctx.beginPath();
+    ctx.moveTo(nx, ny - nh);
+    ctx.lineTo(nx + nw, ny - nh);
+    ctx.lineTo(nx + nw, ny + nh - nh / 2);
+    ctx.quadraticCurveTo(nx + nw, ny + nh, nx + nw - nh / 2, ny + nh);
+    ctx.lineTo(nx + nh / 2, ny + nh);
+    ctx.quadraticCurveTo(nx, ny + nh, nx, ny + nh - nh / 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Very light glass sheen so screen colors stay true.
     const sheen = ctx.createLinearGradient(sx, sy, sx + sw * 0.7, sy + sh * 0.7);
     sheen.addColorStop(0, "rgba(255,255,255,0.05)");
     sheen.addColorStop(0.45, "rgba(255,255,255,0)");

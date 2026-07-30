@@ -1,0 +1,22 @@
+{
+  "summary": "Frontend-only regression test of MockReel Vite+React canvas app after HAND_IMAGE_URL / DEFAULT_SCREEN / NOTCH swap. Uploaded /tmp/test.webm (544x1184 VP8, 2s) and switched to Hand Holding mode. New photo renders correctly: a light-skinned Caucasian woman's arm + hand holds a black modern phone with a visible notch; the studio backdrop has been fully keyed out (no white/grey rectangle around the arm) so only arm/hand/phone show over the selected environment. Video is drawn only inside the phone's real display area with the notch reading on top of the footage — no distortion, no stretching, no transparent holes or black speckles on the hand/phone. Environment selector (Living Room / Bedroom / Park) switches the blurred background — canvas average RGB and bucket diversity change per env (LR r109/g56/b93, Bedroom r144/g127/b118, Park r140/g103/b132). Screen Position section is collapsed by default; expanding reveals all four sliders (screen-left-slider / screen-top-slider / screen-width-slider / screen-height-slider) with defaults 0.328 / 0.090 / 0.361 / 0.771, matching DEFAULT_SCREEN 0.3275 / 0.0900 / 0.3608 / 0.7708 within the 0.001 slider step. Moved Left to 0.15 successfully, screen-reset-btn restored 0.328. Floating Phone view still renders (regression OK). Export in Hand Holding mode completed → in-page <video> preview appears and the <a download> link produces a real mockreel-s24-tiktok-1080x1920.mp4 (~72 KB, 1s). No page errors and no console warnings other than the informational Canvas2D willReadFrequently hint.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "handView.ts getKeyedHand runs a full per-pixel border flood fill + 2-pass 3x3 feather + 2-pass pinhole close on every first paint of the new photo. Cached after that, but the initial keying briefly blocks the main thread (~200-400ms for the 1200px unsplash image). Consider OffscreenCanvas + Web Worker if the photo grows.",
+    "handView.ts creates a fresh HTMLCanvasElement (hand.canvas) at the source image resolution (~1200x1600). It is redrawn every rAF frame in drawHandView — drawImage is fast, but for very large canvases a downsized bake would save fill-rate.",
+    "App.tsx is ~1200 lines and still mixes UI, animation math, drawing loop, and export/audio logic. Splitting drawPhone / animation branches into modules would improve maintainability."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (no backend)", "frontend": "100%"},
+  "seed_data_creation": "Reused existing /tmp/test.webm (544x1184 VP8, 2s).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Screen Position section is collapsed by default — click its header (button containing 'Screen position') before its data-testid sliders appear in the DOM. Environment thumbnails have both an <img alt='Living Room|Bedroom|Park'> and an inner text label, so get_by_role('button', name='Bedroom') resolves to two nodes and hangs — use `button:has(img[alt=\"Bedroom\"])` instead. File input has class 'hidden' — use page.set_input_files without visibility waits. Export uses in-page <a download href=blob:...> inside the preview <main>, not window.open — wait for a[download] to appear then click it inside page.expect_download. Canvas is only mounted after a video is uploaded (before that a 'Upload a video to preview' placeholder is shown), so do not wait_for('canvas') on initial load."
+}
