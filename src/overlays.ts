@@ -1,5 +1,6 @@
 // TikTok-only overlays: opening hook text and closing lead-gen end card.
 // Both are laid out inside TikTok's safe area (right icon rail + bottom caption strip).
+// Supports draggable repositioning via offset parameters.
 
 const SAFE_X = 0.09; // side margin
 const SAFE_RIGHT = 0.22; // TikTok icon rail
