@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { drawHandView, preloadHandViewImages, ENVIRONMENTS, DEFAULT_SCREEN, type EnvironmentId } from "./handView";
-import { drawHookOverlay, drawEndCard, HOOK_FONT } from "./overlays";
+import { drawHookOverlay, drawEndCard, getHookBounds, getEndCardBounds, HOOK_FONT } from "./overlays";
 
 export default Index;
 
@@ -139,10 +139,14 @@ function Index() {
   const [hookEnabled, setHookEnabled] = useState(true);
   const [hookText, setHookText] = useState("I built this so I'd stop journaling in Notes app");
   const [hookDuration, setHookDuration] = useState(1.8);
+  const [hookOffsetX, setHookOffsetX] = useState(0);
+  const [hookOffsetY, setHookOffsetY] = useState(0);
   const [ctaEnabled, setCtaEnabled] = useState(true);
   const [ctaHeadline, setCtaHeadline] = useState("Try it free — link in bio");
   const [ctaHandle, setCtaHandle] = useState("@yourhandle");
   const [ctaDuration, setCtaDuration] = useState(2);
+  const [ctaOffsetX, setCtaOffsetX] = useState(0);
+  const [ctaOffsetY, setCtaOffsetY] = useState(0);
   const [overlayAccent, setOverlayAccent] = useState("#c8ff2e");
 
   // Video player state
@@ -344,7 +348,7 @@ function Index() {
       const hookWindow = dur > 0 ? Math.min(hookDuration, dur * 0.45) : hookDuration;
       const ctaWindow = dur > 0 ? Math.min(ctaDuration, dur * 0.45) : ctaDuration;
       if (hookEnabled) {
-        drawHookOverlay(ctx, cw, ch, vt, { text: hookText, duration: hookWindow, accent: overlayAccent });
+        drawHookOverlay(ctx, cw, ch, vt, { text: hookText, duration: hookWindow, accent: overlayAccent, offsetX: hookOffsetX, offsetY: hookOffsetY });
       }
       if (ctaEnabled && dur > 0) {
         drawEndCard(ctx, cw, ch, dur - vt, {
@@ -352,6 +356,8 @@ function Index() {
           handle: ctaHandle,
           duration: ctaWindow,
           accent: overlayAccent,
+          offsetX: ctaOffsetX,
+          offsetY: ctaOffsetY,
         });
       }
     };
@@ -698,7 +704,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg, screenX, screenY, screenW, screenH, handZoom, handPanX, handPanY, hookEnabled, hookText, hookDuration, ctaEnabled, ctaHeadline, ctaHandle, ctaDuration, overlayAccent, zoomLockEnabled, zoomLockTime, zoomLockScale, zoomLockOffsetX, zoomLockOffsetY, zoomLockHandZoom, zoomLockHandPanX, zoomLockHandPanY]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg, screenX, screenY, screenW, screenH, handZoom, handPanX, handPanY, hookEnabled, hookText, hookDuration, hookOffsetX, hookOffsetY, ctaEnabled, ctaHeadline, ctaHandle, ctaDuration, ctaOffsetX, ctaOffsetY, overlayAccent, zoomLockEnabled, zoomLockTime, zoomLockScale, zoomLockOffsetX, zoomLockOffsetY, zoomLockHandZoom, zoomLockHandPanX, zoomLockHandPanY]);
 
 
   const exportVideo = async () => {
@@ -1188,6 +1194,15 @@ function Index() {
                     className="h-1 w-full cursor-pointer accent-white"
                   />
                 </div>
+                {(hookOffsetX !== 0 || hookOffsetY !== 0) && (
+                  <button
+                    onClick={() => { setHookOffsetX(0); setHookOffsetY(0); }}
+                    className="text-[10px] text-white/40 underline hover:text-white/70 transition"
+                  >
+                    Reset position
+                  </button>
+                )}
+                <p className="text-[10px] text-white/30 italic">Drag the hook text on the preview to reposition</p>
               </div>
             </Section>
 
@@ -1231,6 +1246,15 @@ function Index() {
                     className="h-1 w-full cursor-pointer accent-white"
                   />
                 </div>
+                {(ctaOffsetX !== 0 || ctaOffsetY !== 0) && (
+                  <button
+                    onClick={() => { setCtaOffsetX(0); setCtaOffsetY(0); }}
+                    className="text-[10px] text-white/40 underline hover:text-white/70 transition"
+                  >
+                    Reset position
+                  </button>
+                )}
+                <p className="text-[10px] text-white/30 italic">Drag the end card on the preview to reposition</p>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-white/40">Accent</span>
                   {["#c8ff2e", "#ff4d8d", "#4dd8ff", "#ffffff"].map((c) => (
@@ -1310,13 +1334,56 @@ function Index() {
                     const rect = el.getBoundingClientRect();
                     const startX = e.clientX;
                     const startY = e.clientY;
+
+                    // Convert pointer position to canvas coords
+                    const canvasW = el.width;
+                    const canvasH = el.height;
+                    const scaleX = canvasW / rect.width;
+                    const scaleY = canvasH / rect.height;
+                    const cx = (e.clientX - rect.left) * scaleX;
+                    const cy = (e.clientY - rect.top) * scaleY;
+
+                    // Hit-test overlays
+                    const video = videoRef.current;
+                    const vt = video ? video.currentTime : 0;
+                    const dur = videoMeta?.d ?? 0;
+                    const hookWindow = hookDuration + 0.28;
+                    const ctaWindow = ctaDuration + 0.4;
+                    const hookVisible = hookEnabled && vt <= hookWindow;
+                    const ctaVisible = ctaEnabled && dur > 0 && (dur - vt) <= ctaWindow && (dur - vt) >= 0;
+
+                    let dragTarget: "hook" | "cta" | "video" = "video";
+                    if (hookVisible) {
+                      const hb = getHookBounds(canvasW, canvasH, hookText, hookOffsetX, hookOffsetY);
+                      if (hb && cx >= hb.x && cx <= hb.x + hb.w && cy >= hb.y && cy <= hb.y + hb.h) {
+                        dragTarget = "hook";
+                      }
+                    }
+                    if (ctaVisible && dragTarget === "video") {
+                      const cb = getEndCardBounds(canvasW, canvasH, ctaHeadline, ctaHandle, ctaOffsetX, ctaOffsetY);
+                      if (cb && cx >= cb.x && cx <= cb.x + cb.w && cy >= cb.y && cy <= cb.y + cb.h) {
+                        dragTarget = "cta";
+                      }
+                    }
+
+                    const startHookX = hookOffsetX;
+                    const startHookY = hookOffsetY;
+                    const startCtaX = ctaOffsetX;
+                    const startCtaY = ctaOffsetY;
                     const isHand = viewMode === "hand";
                     const startOffX = isHand ? handPanX : videoOffsetX;
                     const startOffY = isHand ? handPanY : videoOffsetY;
+
                     const move = (ev: PointerEvent) => {
                       const dx = (ev.clientX - startX) / rect.width;
                       const dy = (ev.clientY - startY) / rect.height;
-                      if (isHand) {
+                      if (dragTarget === "hook") {
+                        setHookOffsetX(startHookX + dx);
+                        setHookOffsetY(startHookY + dy);
+                      } else if (dragTarget === "cta") {
+                        setCtaOffsetX(startCtaX + dx);
+                        setCtaOffsetY(startCtaY + dy);
+                      } else if (isHand) {
                         setHandPanX(startOffX + dx);
                         setHandPanY(startOffY + dy);
                       } else {

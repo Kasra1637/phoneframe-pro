@@ -53,8 +53,10 @@ function pill(
 
 export interface HookOptions {
   text: string;
-  duration: number; // seconds the hook stays on screen
+  duration: number;
   accent: string;
+  offsetX?: number;
+  offsetY?: number;
 }
 
 /**
@@ -65,7 +67,7 @@ export function drawHookOverlay(
   cw: number,
   ch: number,
   time: number,
-  { text, duration, accent }: HookOptions,
+  { text, duration, accent, offsetX = 0, offsetY = 0 }: HookOptions,
 ) {
   if (!text.trim() || time > duration) return;
 
@@ -75,7 +77,6 @@ export function drawHookOverlay(
 
   const scale = 1.24 - 0.24 * easeOutBack(inT) - outT * 0.06;
   const alpha = Math.min(1, inT * 1.4) * (1 - outT);
-  // Tiny settle wobble right after the punch.
   const wobble = inT >= 1 ? Math.sin((time - 0.32) * 9) * 0.004 * Math.max(0, 1 - (time - 0.32) * 1.6) : 0;
 
   const maxWidth = cw * (1 - SAFE_X * 2 - 0.02);
@@ -90,12 +91,12 @@ export function drawHookOverlay(
   const padX = fontSize * 0.3;
   const padY = fontSize * 0.16;
   const blockH = lines.length * lineH;
-  const top = ch * 0.13;
+  const top = ch * 0.13 + offsetY * ch;
 
   ctx.globalAlpha = alpha;
-  ctx.translate(cw / 2, top + blockH / 2);
+  ctx.translate(cw / 2 + offsetX * cw, top + blockH / 2);
   ctx.scale(scale + wobble, scale + wobble);
-  ctx.translate(-cw / 2, -(top + blockH / 2));
+  ctx.translate(-(cw / 2 + offsetX * cw), -(top + blockH / 2));
 
   lines.forEach((ln, i) => {
     const cy = top + i * lineH + lineH / 2;
@@ -132,8 +133,10 @@ export function drawHookOverlay(
 export interface EndCardOptions {
   headline: string;
   handle: string;
-  duration: number; // seconds before the end
+  duration: number;
   accent: string;
+  offsetX?: number;
+  offsetY?: number;
 }
 
 /**
@@ -145,7 +148,7 @@ export function drawEndCard(
   cw: number,
   ch: number,
   timeLeft: number,
-  { headline, handle, duration, accent }: EndCardOptions,
+  { headline, handle, duration, accent, offsetX = 0, offsetY = 0 }: EndCardOptions,
 ) {
   if (timeLeft > duration || timeLeft < 0) return;
   const elapsed = duration - timeLeft;
@@ -166,8 +169,8 @@ export function drawEndCard(
   const lines = wrap(ctx, headline.toUpperCase(), boxW - headFont * 0.6);
   const lineH = headFont * 1.14;
   const blockH = lines.length * lineH + subFont * 2.6;
-  const x = cw * SAFE_X;
-  const bottom = ch * (1 - SAFE_BOTTOM);
+  const x = cw * SAFE_X + offsetX * cw;
+  const bottom = ch * (1 - SAFE_BOTTOM) + offsetY * ch;
   const top = bottom - blockH + rise;
 
   lines.forEach((ln, i) => {
@@ -208,4 +211,53 @@ export function drawEndCard(
   ctx.stroke();
 
   ctx.restore();
+}
+
+/** Returns bounding box (in canvas coords) for the hook text overlay. */
+export function getHookBounds(
+  cw: number, ch: number, text: string, offsetX: number, offsetY: number,
+): { x: number; y: number; w: number; h: number } | null {
+  if (!text.trim()) return null;
+  const fontSize = Math.round(cw * 0.108);
+  const maxWidth = cw * (1 - SAFE_X * 2 - 0.02);
+  const canvas = typeof OffscreenCanvas !== "undefined"
+    ? new OffscreenCanvas(1, 1)
+    : null;
+  if (!canvas) return null;
+  const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
+  if (!ctx) return null;
+  ctx.font = `${fontSize}px ${HOOK_FONT}`;
+  const lines = wrap(ctx, text.toUpperCase(), maxWidth);
+  const lineH = fontSize * 1.16;
+  const padX = fontSize * 0.3;
+  const padY = fontSize * 0.16;
+  const blockH = lines.length * lineH;
+  const blockW = Math.min(maxWidth, Math.max(...lines.map(l => ctx.measureText(l).width))) + padX * 2;
+  const top = ch * 0.13 + offsetY * ch;
+  const left = cw / 2 - blockW / 2 + offsetX * cw;
+  return { x: left, y: top - padY, w: blockW, h: blockH + padY * 2 };
+}
+
+/** Returns bounding box (in canvas coords) for the end card overlay. */
+export function getEndCardBounds(
+  cw: number, ch: number, headline: string, handle: string, offsetX: number, offsetY: number,
+): { x: number; y: number; w: number; h: number } | null {
+  if (!headline.trim()) return null;
+  const headFont = Math.round(cw * 0.082);
+  const subFont = Math.round(cw * 0.046);
+  const boxW = cw * (1 - SAFE_X - SAFE_RIGHT);
+  const canvas = typeof OffscreenCanvas !== "undefined"
+    ? new OffscreenCanvas(1, 1)
+    : null;
+  if (!canvas) return null;
+  const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
+  if (!ctx) return null;
+  ctx.font = `${headFont}px ${HOOK_FONT}`;
+  const lines = wrap(ctx, headline.toUpperCase(), boxW - headFont * 0.6);
+  const lineH = headFont * 1.14;
+  const blockH = lines.length * lineH + subFont * 2.6;
+  const x = cw * SAFE_X + offsetX * cw;
+  const bottom = ch * (1 - SAFE_BOTTOM) + offsetY * cw;
+  const top = bottom - blockH;
+  return { x, y: top, w: boxW, h: blockH };
 }
