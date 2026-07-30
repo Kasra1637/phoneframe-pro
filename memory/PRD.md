@@ -57,3 +57,20 @@ screen sliders + reset, floating view, MP4 export/download, zero console errors.
 - Added 3 simple, non-distracting environments: Ocean, Green Bokeh, Soft Loft (6 total).
 - Testing agent iteration_4: 100% pass. Known cosmetic note: React's passive wheel listener logs a
   preventDefault warning on canvas scroll-zoom (P2: attach a non-passive wheel listener via useEffect).
+
+## Update (2026-06-30, session 5) — TikTok hook + end card
+- New `src/overlays.ts`:
+  - `drawHookOverlay`: punch-in (easeOutBack) uppercase hook text on dark pills with accent underline,
+    visible from frame 0, default copy "I built this so I'd stop journaling in Notes app", duration 0.8-4s.
+  - `drawEndCard`: lead-gen CTA (headline + handle chip + pumping arrow) in the last 1-5s, laid out inside
+    TikTok's safe area only (side 9%, right icon rail 22%, bottom caption strip 24%). No LinkedIn variant.
+- Overlays render in both Hand Holding and Floating views, driven by `video.currentTime` so they bake into the
+  MP4 export; windows auto-clamp to 45% of duration on short clips so hook and CTA never overlap.
+- Sidebar: "Hook text (first seconds)" and "End card CTA (TikTok)" sections (toggles, copy inputs, duration
+  sliders, 4 accent swatches). Anton display font loaded in index.html.
+- Testing agent iteration_5: 100% pass (12/12 checks incl. safe-area pixel sampling, punch-in animation,
+  all controls, accent swatches, floating regression, short-clip guard).
+
+## Backlog (updated)
+- P1: split App.tsx (~1400 lines) into modules; separate hook vs CTA accent colours.
+- P2: auto-captions (Whisper), variant batch export, saveable presets, environment-matched screen glow.
