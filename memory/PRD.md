@@ -30,3 +30,14 @@ screen sliders + reset, floating view, MP4 export/download, zero console errors.
 - P1: Multiple hand/environment stock photos to choose from.
 - P2: Split App.tsx (1200 lines) into modules; move keying to a Web Worker.
 - P2: Optional device reflection/shadow matched to selected environment.
+
+## Update (2026-06-30, session 2) — new hand stock photo
+- Replaced hand photo with Unsplash `photo-1691256676376-357c3aa66c89` (Caucasian woman's arm/wrist/hand
+  holding a black modern phone, same vertical angle, seamless white studio backdrop).
+- Backdrop keyed out completely via the flood-fill matte (no phone-body protection needed — the display is
+  enclosed by the black frame); subject bounding box is computed during keying and used to frame the shot
+  (uniform scale, bottom-anchored, horizontally centered on the subject → no stretching, no side clipping).
+- New calibration: DEFAULT_SCREEN {x:0.3275, y:0.0900, w:0.3608, h:0.7708}, screen corner radius 0.032,
+  notch pill {x:0.4208, y:0.0892, w:0.1933, h:0.0317} redrawn over the footage for realism.
+- Verified by testing agent iteration_2: 100% frontend pass (upload, keying, environments, sliders + reset,
+  floating view, MP4 export, no console errors).
