@@ -49,3 +49,11 @@ screen sliders + reset, floating view, MP4 export/download, zero console errors.
   and a "Reset hand framing" button. Floating-mode drag/wheel behaviour unchanged.
 - Handheld motion amplitude slightly increased (drift + breathing + micro-tremor) and remains on by default.
 - Testing agent iteration_3: 100% pass; only a cosmetic note that default zoom leaves some background margin.
+
+## Update (2026-06-30, session 4)
+- Fixed the leftover white backdrop pocket between thumb and phone: after the border flood fill the matte now
+  sweeps enclosed backdrop-coloured islands and removes any component < 2% of the image (the phone display is
+  ~27%, so it is preserved). No other pixels touched.
+- Added 3 simple, non-distracting environments: Ocean, Green Bokeh, Soft Loft (6 total).
+- Testing agent iteration_4: 100% pass. Known cosmetic note: React's passive wheel listener logs a
+  preventDefault warning on canvas scroll-zoom (P2: attach a non-passive wheel listener via useEffect).
