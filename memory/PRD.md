@@ -74,3 +74,8 @@ screen sliders + reset, floating view, MP4 export/download, zero console errors.
 ## Backlog (updated)
 - P1: split App.tsx (~1400 lines) into modules; separate hook vs CTA accent colours.
 - P2: auto-captions (Whisper), variant batch export, saveable presets, environment-matched screen glow.
+
+## Update (2026-06-30, session 6)
+- Environments: removed Ocean, Park and Green Bokeh; added "Bright Bedroom" and "Sunlit Bedroom".
+  Final list (5): Living Room, Bedroom, Bright Bedroom, Sunlit Bedroom, Soft Loft.
+- Testing agent iteration_6: 100% pass (5 distinct environments, thumbnails load, composite + all controls intact).
