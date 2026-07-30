@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend-only test of MockReel Hand Holding view. White-sliver bug fix verified: gap between thumb and phone now shows the environment (0% near-white pixels in the gap region for dark envs Living Room, Bedroom, Soft Loft, and Park; Ocean's 23% comes from its legitimately bright sky, not leftover backdrop). Phone display still shows the uploaded video (magenta test pattern rendered inside screen area). All 6 environment thumbnails load (Living Room 800x1000, Bedroom/Ocean/Green Bokeh/Soft Loft 800x1200, Park 800x1199) and switching between them visibly changes the background. Regressions all pass: hand-zoom/pan sliders, hand-transform-reset-btn, canvas drag pans hand (0->0.22), wheel scroll zooms hand (1->1.3), screen-position sliders + screen-reset-btn restore defaults (L=0.328, T=0.09, W=0.361, H=0.771, matching DEFAULT_SCREEN within rounding). Floating Phone view still renders. Export in Hand mode produces a downloadable MP4 (mockreel-s24-tiktok-1080x1920.mp4, ~0.05MB in 2s). No JS errors; only a benign 'preventDefault inside passive event listener' warning from the onWheel handler on canvas.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Canvas onWheel", "issues": ["Console warning: 'Unable to preventDefault inside passive event listener invocation.' React binds wheel as passive by default. Consider attaching a non-passive wheel listener via ref/useEffect or removing e.preventDefault()."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional/minor) Silence the passive-wheel warning by attaching a native non-passive wheel listener in useEffect on previewCanvasRef instead of the JSX onWheel prop."
+  ],
+  "critical_code_review_comments": [
+    "handView.ts enclosed-island sweep is O(N) via BFS which is fine, but combined with 2 dilation passes and 2 blur passes over a 1200x1800 image (~2.1M pixels) it costs several seconds on first hand-mode entry. Result is cached per-image, so acceptable, but consider running in an OffscreenCanvas/worker to avoid blocking the main thread.",
+    "App.tsx is ~1270 lines and exceeds the 700-line guideline. Consider splitting DEVICES/PRESETS/BACKGROUNDS/COLOR_PALETTES constants and the drawPhone / floating-animation blocks into separate modules for maintainability.",
+    "minKeep = n * 0.02 in the island sweep will always preserve the phone display (much larger than 2%), but if the studio backdrop ever occupies a bigger enclosed region (e.g. very zoomed-out photo), it could remain. Fine for the current single stock photo."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100%"},
+  "seed_data_creation": "None. Used existing /tmp/test.webm (VP8 544x1184).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview URL works. Canvas only mounts after video upload. When switching to Hand Holding, wait ~7-9s for the initial keying (border flood + island sweep + blur) before sampling pixels. Screen Position section is collapsed by default (only Environment and Hand size & position are defaultOpen); click the section header before interacting with screen-*-slider testids. Use native input-value setter + input event to programmatically move sliders. Pixel-sampling near-white detector: max(r,g,b)>210 AND (max-min)<25 — Ocean env legitimately triggers this from its bright sky, so evaluate the fix on darker envs.",
+  "rca of the issue": "Original bug: getKeyedHand() used only a border-connected flood fill, so the small studio-backdrop pocket between the thumb and the phone's left edge — which is fully enclosed by skin and phone body — could not be reached from the image border and remained opaque, producing the reported white sliver. Fix: after the border fill + pinhole close, an additional pass sweeps all remaining backdrop-candidate pixels; any connected component smaller than 2% of the image is treated as an enclosed backdrop pocket and added to the matte. The phone display (much larger than 2%) is preserved, so the video still renders in the screen area, and small islands like the thumb/phone gap get removed. Verified: 0.00% near-white pixels in the gap region for Living Room, Park, and Soft Loft, and only 0.01/0.34% for Bedroom/Green Bokeh (edge feathering)."
+}

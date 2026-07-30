@@ -1,4 +1,10 @@
-export type EnvironmentId = "living_room" | "bedroom" | "park";
+export type EnvironmentId =
+  | "living_room"
+  | "bedroom"
+  | "park"
+  | "ocean"
+  | "park_bokeh"
+  | "loft";
 
 export interface EnvironmentOption {
   id: EnvironmentId;
@@ -21,6 +27,21 @@ export const ENVIRONMENTS: EnvironmentOption[] = [
     id: "park",
     label: "Park",
     url: "https://images.pexels.com/photos/13074577/pexels-photo-13074577.jpeg?auto=compress&cs=tinysrgb&h=1200&w=800",
+  },
+  {
+    id: "ocean",
+    label: "Ocean",
+    url: "https://images.unsplash.com/photo-1616159988985-750036b28b40?crop=entropy&cs=srgb&fm=jpg&ixlib=rb-4.1.0&q=85&w=800&h=1200&fit=crop",
+  },
+  {
+    id: "park_bokeh",
+    label: "Green Bokeh",
+    url: "https://images.unsplash.com/photo-1654638748957-20048f8426ac?crop=entropy&cs=srgb&fm=jpg&ixlib=rb-4.1.0&q=85&w=800&h=1200&fit=crop",
+  },
+  {
+    id: "loft",
+    label: "Soft Loft",
+    url: "https://images.unsplash.com/photo-1767720580810-58be50f89bf8?crop=entropy&cs=srgb&fm=jpg&ixlib=rb-4.1.0&q=85&w=800&h=1200&fit=crop",
   },
 ];
 
@@ -163,6 +184,39 @@ function getKeyedHand(img: HTMLImageElement): KeyedHand | null {
         }
         if (open >= 6) filled[idx] = 0;
       }
+    }
+  }
+
+  // Enclosed backdrop pockets (e.g. the gap between thumb and phone) can't be reached
+  // from the border, so sweep them separately: any small backdrop-coloured island that
+  // is not the phone display gets removed too. The display is huge, so it stays intact.
+  const visited = new Uint8Array(n);
+  const island = new Int32Array(n);
+  const minKeep = n * 0.02;
+  for (let start = 0; start < n; start++) {
+    if (!candidate[start] || filled[start] || visited[start]) continue;
+    let head = 0;
+    let tail = 0;
+    island[tail++] = start;
+    visited[start] = 1;
+    while (head < tail) {
+      const idx = island[head++];
+      const y = (idx / w) | 0;
+      const x = idx - y * w;
+      const walk = (nx: number, ny: number) => {
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) return;
+        const ni = ny * w + nx;
+        if (!candidate[ni] || filled[ni] || visited[ni]) return;
+        visited[ni] = 1;
+        island[tail++] = ni;
+      };
+      walk(x + 1, y);
+      walk(x - 1, y);
+      walk(x, y + 1);
+      walk(x, y - 1);
+    }
+    if (tail < minKeep) {
+      for (let i = 0; i < tail; i++) filled[island[i]] = 1;
     }
   }
 
