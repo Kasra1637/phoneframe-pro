@@ -160,6 +160,17 @@ function Index() {
   const [zoomLockHandPanX, setZoomLockHandPanX] = useState(0);
   const [zoomLockHandPanY, setZoomLockHandPanY] = useState(0);
 
+  // Refs for zoom-lock so the RAF draw loop always reads latest values
+  const zoomLockRef = useRef({
+    enabled: false, time: 0,
+    scale: 1, offX: 0, offY: 0,
+    handZoom: 1, handPanX: 0, handPanY: 0,
+  });
+  const liveZoomRef = useRef({
+    scale: 1, offX: 0, offY: 0,
+    handZoom: 1, handPanX: 0, handPanY: 0,
+  });
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -246,6 +257,22 @@ function Index() {
     setCurrentTime(time);
   };
 
+  // Keep refs in sync with state so the RAF draw loop reads the latest values
+  useEffect(() => {
+    zoomLockRef.current = {
+      enabled: zoomLockEnabled, time: zoomLockTime,
+      scale: zoomLockScale, offX: zoomLockOffsetX, offY: zoomLockOffsetY,
+      handZoom: zoomLockHandZoom, handPanX: zoomLockHandPanX, handPanY: zoomLockHandPanY,
+    };
+  }, [zoomLockEnabled, zoomLockTime, zoomLockScale, zoomLockOffsetX, zoomLockOffsetY, zoomLockHandZoom, zoomLockHandPanX, zoomLockHandPanY]);
+
+  useEffect(() => {
+    liveZoomRef.current = {
+      scale: videoScale, offX: videoOffsetX, offY: videoOffsetY,
+      handZoom, handPanX, handPanY,
+    };
+  }, [videoScale, videoOffsetX, videoOffsetY, handZoom, handPanX, handPanY]);
+
   const captureZoomLock = () => {
     const video = videoRef.current;
     const t = video ? video.currentTime : 0;
@@ -259,25 +286,26 @@ function Index() {
     setZoomLockEnabled(true);
   };
 
-  // Compute effective zoom values based on zoom-lock
   const getEffectiveZoom = (videoTime: number) => {
-    if (!zoomLockEnabled || videoTime < zoomLockTime) {
+    const lock = zoomLockRef.current;
+    const live = liveZoomRef.current;
+    if (!lock.enabled || videoTime < lock.time) {
       return {
-        vScale: videoScale,
-        vOffX: videoOffsetX,
-        vOffY: videoOffsetY,
-        hZoom: handZoom,
-        hPanX: handPanX,
-        hPanY: handPanY,
+        vScale: live.scale,
+        vOffX: live.offX,
+        vOffY: live.offY,
+        hZoom: live.handZoom,
+        hPanX: live.handPanX,
+        hPanY: live.handPanY,
       };
     }
     return {
-      vScale: zoomLockScale,
-      vOffX: zoomLockOffsetX,
-      vOffY: zoomLockOffsetY,
-      hZoom: zoomLockHandZoom,
-      hPanX: zoomLockHandPanX,
-      hPanY: zoomLockHandPanY,
+      vScale: lock.scale,
+      vOffX: lock.offX,
+      vOffY: lock.offY,
+      hZoom: lock.handZoom,
+      hPanX: lock.handPanX,
+      hPanY: lock.handPanY,
     };
   };
 
