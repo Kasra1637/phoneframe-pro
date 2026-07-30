@@ -145,10 +145,26 @@ function Index() {
   const [ctaDuration, setCtaDuration] = useState(2);
   const [overlayAccent, setOverlayAccent] = useState("#c8ff2e");
 
+  // Video player state
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
+
+  // Zoom-lock state: lock zoom settings from a specific timestamp onward
+  const [zoomLockEnabled, setZoomLockEnabled] = useState(false);
+  const [zoomLockTime, setZoomLockTime] = useState(0);
+  const [zoomLockScale, setZoomLockScale] = useState(1);
+  const [zoomLockOffsetX, setZoomLockOffsetX] = useState(0);
+  const [zoomLockOffsetY, setZoomLockOffsetY] = useState(0);
+  const [zoomLockHandZoom, setZoomLockHandZoom] = useState(1);
+  const [zoomLockHandPanX, setZoomLockHandPanX] = useState(0);
+  const [zoomLockHandPanY, setZoomLockHandPanY] = useState(0);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const timeUpdateRef = useRef<number>(0);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
@@ -175,7 +191,6 @@ function Index() {
     v.onloadedmetadata = () => {
       setVideoMeta({ w: v.videoWidth, h: v.videoHeight, d: v.duration });
     };
-    // Also ensure the ref video element starts playing once source is set
     const refVideo = videoRef.current;
     if (refVideo) {
       refVideo.src = videoUrl;
@@ -184,8 +199,87 @@ function Index() {
       refVideo.playsInline = true;
       refVideo.load();
       refVideo.play().catch(() => {});
+      setIsPlaying(true);
+      setCurrentTime(0);
     }
   }, [videoUrl]);
+
+  // Track current time from the video element
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const onTime = () => {
+      if (!isSeeking) setCurrentTime(video.currentTime);
+    };
+    video.addEventListener("timeupdate", onTime);
+    // More frequent updates via RAF for smooth seek bar
+    let raf = 0;
+    const tick = () => {
+      if (!isSeeking && video && !video.paused) {
+        setCurrentTime(video.currentTime);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      video.removeEventListener("timeupdate", onTime);
+      cancelAnimationFrame(raf);
+    };
+  }, [isSeeking]);
+
+  const togglePlayPause = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().catch(() => {});
+      setIsPlaying(true);
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const handleSeek = (time: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = time;
+    setCurrentTime(time);
+  };
+
+  const captureZoomLock = () => {
+    const video = videoRef.current;
+    const t = video ? video.currentTime : 0;
+    setZoomLockTime(t);
+    setZoomLockScale(videoScale);
+    setZoomLockOffsetX(videoOffsetX);
+    setZoomLockOffsetY(videoOffsetY);
+    setZoomLockHandZoom(handZoom);
+    setZoomLockHandPanX(handPanX);
+    setZoomLockHandPanY(handPanY);
+    setZoomLockEnabled(true);
+  };
+
+  // Compute effective zoom values based on zoom-lock
+  const getEffectiveZoom = (videoTime: number) => {
+    if (!zoomLockEnabled || videoTime < zoomLockTime) {
+      return {
+        vScale: videoScale,
+        vOffX: videoOffsetX,
+        vOffY: videoOffsetY,
+        hZoom: handZoom,
+        hPanX: handPanX,
+        hPanY: handPanY,
+      };
+    }
+    return {
+      vScale: zoomLockScale,
+      vOffX: zoomLockOffsetX,
+      vOffY: zoomLockOffsetY,
+      hZoom: zoomLockHandZoom,
+      hPanX: zoomLockHandPanX,
+      hPanY: zoomLockHandPanY,
+    };
+  };
 
 
   // Preview loop
@@ -234,10 +328,13 @@ function Index() {
     const draw = () => {
       ctx.clearRect(0, 0, cw, ch);
 
+      const vt = video.currentTime || 0;
+      const ez = getEffectiveZoom(vt);
+
       // --- Hand-holding-phone view ---
       if (viewMode === "hand" && video) {
         const t = performance.now() / 1000;
-        drawHandView(ctx, cw, ch, video, envBg, t, videoFit, videoScale, videoOffsetX, videoOffsetY, { x: screenX, y: screenY, w: screenW, h: screenH }, handZoom, handPanX, handPanY);
+        drawHandView(ctx, cw, ch, video, envBg, t, videoFit, ez.vScale, ez.vOffX, ez.vOffY, { x: screenX, y: screenY, w: screenW, h: screenH }, ez.hZoom, ez.hPanX, ez.hPanY);
         drawOverlays();
         rafRef.current = requestAnimationFrame(draw);
         return;
@@ -536,7 +633,7 @@ function Index() {
         ctx.transform(1, tiltX * 0.8, tiltY * 0.6, 1, 0, 0);
 
         ctx.translate(-drawW / 2, -drawH / 2);
-        drawPhone(ctx, 0, 0, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor);
+        drawPhone(ctx, 0, 0, drawW, drawH, dev, video, videoFit, ez.vScale, ez.vOffX, ez.vOffY, frameColor);
         ctx.restore();
 
         // Vignette overlay (draws eye to center)
@@ -560,7 +657,7 @@ function Index() {
         const drawH = phoneH * fit;
         const x = (cw - drawW) / 2;
         const y = (ch - drawH) / 2;
-        drawPhone(ctx, x, y, drawW, drawH, dev, video, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor);
+        drawPhone(ctx, x, y, drawW, drawH, dev, video, videoFit, ez.vScale, ez.vOffX, ez.vOffY, frameColor);
       }
       drawOverlays();
       rafRef.current = requestAnimationFrame(draw);
@@ -570,7 +667,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg, screenX, screenY, screenW, screenH, handZoom, handPanX, handPanY, hookEnabled, hookText, hookDuration, ctaEnabled, ctaHeadline, ctaHandle, ctaDuration, overlayAccent]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg, screenX, screenY, screenW, screenH, handZoom, handPanX, handPanY, hookEnabled, hookText, hookDuration, ctaEnabled, ctaHeadline, ctaHandle, ctaDuration, overlayAccent, zoomLockEnabled, zoomLockTime, zoomLockScale, zoomLockOffsetX, zoomLockOffsetY, zoomLockHandZoom, zoomLockHandPanX, zoomLockHandPanY]);
 
 
   const exportVideo = async () => {
@@ -1214,6 +1311,103 @@ function Index() {
               )}
             </div>
 
+            {/* Video Player Controls */}
+            {videoUrl && videoMeta && (
+              <div className="w-full mt-3 rounded-xl bg-white/[0.06] border border-white/10 p-3 space-y-3">
+                {/* Play/Pause + Time + Duration */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={togglePlayPause}
+                    className="flex-shrink-0 w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
+                    title={isPlaying ? "Pause" : "Play"}
+                  >
+                    {isPlaying ? (
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="white">
+                        <rect x="3" y="2" width="4" height="12" rx="1" />
+                        <rect x="9" y="2" width="4" height="12" rx="1" />
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="white">
+                        <path d="M4 2.5v11l10-5.5L4 2.5z" />
+                      </svg>
+                    )}
+                  </button>
+                  <span className="text-[11px] text-white/60 tabular-nums flex-shrink-0">
+                    {formatTime(currentTime)} / {formatTime(videoMeta.d)}
+                  </span>
+                  {/* Seek bar */}
+                  <div className="flex-1 relative group">
+                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full bg-white/70 rounded-full transition-[width] duration-75"
+                        style={{ width: `${videoMeta.d > 0 ? (currentTime / videoMeta.d) * 100 : 0}%` }}
+                      />
+                    </div>
+                    {/* Zoom lock marker */}
+                    {zoomLockEnabled && videoMeta.d > 0 && (
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-amber-600 shadow-sm shadow-amber-400/40"
+                        style={{ left: `${(zoomLockTime / videoMeta.d) * 100}%` }}
+                        title={`Zoom locks at ${formatTime(zoomLockTime)}`}
+                      />
+                    )}
+                    <input
+                      type="range"
+                      min={0}
+                      max={videoMeta.d || 1}
+                      step={0.01}
+                      value={currentTime}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onPointerDown={() => setIsSeeking(true)}
+                      onPointerUp={() => setIsSeeking(false)}
+                      onChange={(e) => handleSeek(parseFloat(e.target.value))}
+                    />
+                  </div>
+                </div>
+
+                {/* Zoom Lock Section */}
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.06]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/50 flex-shrink-0">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <span className="text-[11px] text-white/50">Zoom Lock</span>
+                    {zoomLockEnabled && (
+                      <span className="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
+                        from {formatTime(zoomLockTime)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {!zoomLockEnabled ? (
+                      <button
+                        onClick={captureZoomLock}
+                        className="text-[11px] px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition font-medium"
+                      >
+                        Lock at current time
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={captureZoomLock}
+                          className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/15 transition"
+                        >
+                          Update
+                        </button>
+                        <button
+                          onClick={() => setZoomLockEnabled(false)}
+                          className="text-[11px] px-2.5 py-1.5 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 transition"
+                        >
+                          Clear
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <video ref={videoRef} className="hidden" playsInline muted loop autoPlay />
 
 
@@ -1237,6 +1431,12 @@ function Index() {
   );
 }
 
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 function seekVideo(video: HTMLVideoElement, time: number) {
   return new Promise<void>((resolve) => {
