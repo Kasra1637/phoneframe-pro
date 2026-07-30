@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend-only testing of the new Hand-Holding zoom/pan feature in MockReel. Uploaded /tmp/test.webm, verified default framing shows the full arm/hand/phone with no clipping, verified the new 'Hand size & position' sidebar (data-testid=hand-transform-controls) with all four expected controls (hand-zoom-slider, hand-panx-slider, hand-pany-slider, hand-transform-reset-btn), and validated interactive behaviours: canvas drag updates hand H/V (54%, 15%) in hand mode without touching video crop; mouse wheel zooms hand (1.00x -> 1.75x); reset button restores 1.00x / 0% / 0%; environment background stays put while hand+phone scale; realistic handheld motion animates the canvas over time. Regression: in Floating Phone mode, drag still updates Video crop H/V offset (0%/0% -> 100%/30%) and wheel still changes video Zoom (1.00x -> 2.00x). Export MP4 button remains available in hand mode. No JS/page errors during interaction (only a benign Canvas2D willReadFrequently warning triggered by the test's own getImageData calls, and passive-listener preventDefault notices from Playwright synthetic wheel events).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Hand Holding default framing", "issues": ["At default zoom 1.00 there is now sizable empty (blurred bg) space to the left/right of the hand because baseFit was reduced. Framing is correct (nothing clipped, all fingers visible) but users may want a slightly larger default zoom (~1.15) to fill the frame better."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "handView.ts: getImageData is called without willReadFrequently:true on the working canvas; browser logs a warning. Minor perf hint only.",
+    "App.tsx onWheel handler calls e.preventDefault() but React attaches wheel as passive by default in some versions -> console shows 'Unable to preventDefault inside passive event listener' when synthesised via Playwright. Consider attaching wheel via useEffect + addEventListener('wheel', ..., {passive:false}) to guarantee the video/hand-zoom interaction cannot scroll the page on real trackpads.",
+    "Drag sensitivity in Floating mode is 200x (dx*200) so a small drag already saturates H offset to 100%. Not a regression, but consider lowering to ~100x for finer control (same feedback would apply to hand pan which uses 1x — feels correct).",
+    "App.tsx is 1274 lines — approaching the 700-line guideline; splitting the sidebar Sections into subcomponents would improve maintainability."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "n/a",
+  "seed_data_creation": "Used existing /tmp/test.webm (544x1184 VP8, 2s).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Preview URL: https://72fffac8-0db5-42ae-bc77-4fb81ff62df9.preview.emergentagent.com . Upload /tmp/test.webm via input[type=file]. Sections in the sidebar are collapsible; when asserting Floating-mode Video crop state, click the 'Video crop' section header first to render its inputs and read the labels 'Zoom:'/'H offset:'/'V offset:'. Range inputs must be driven via the native value setter + input event (not fill()). Hand-mode testids are all wired: hand-transform-controls, hand-zoom-slider, hand-panx-slider, hand-pany-slider, hand-transform-reset-btn, screen-position-controls, screen-{left|top|width|height}-slider, screen-reset-btn. Canvas has no testid — use document.querySelector('canvas').",
+  "rca of the issue": "n/a — no bugs uncovered. Previous right-edge clipping fixed by baseFit = min(cw*0.98/hand.bw, ch*1.0/hand.bh) plus user-controllable handZoom/pan, verified visually and via edge-pixel sampling."
+}

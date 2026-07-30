@@ -132,6 +132,9 @@ function Index() {
   const [screenY, setScreenY] = useState(DEFAULT_SCREEN.y);
   const [screenW, setScreenW] = useState(DEFAULT_SCREEN.w);
   const [screenH, setScreenH] = useState(DEFAULT_SCREEN.h);
+  const [handZoom, setHandZoom] = useState(1);
+  const [handPanX, setHandPanX] = useState(0);
+  const [handPanY, setHandPanY] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -201,7 +204,7 @@ function Index() {
       // --- Hand-holding-phone view ---
       if (viewMode === "hand" && video) {
         const t = performance.now() / 1000;
-        drawHandView(ctx, cw, ch, video, envBg, t, videoFit, videoScale, videoOffsetX, videoOffsetY, { x: screenX, y: screenY, w: screenW, h: screenH });
+        drawHandView(ctx, cw, ch, video, envBg, t, videoFit, videoScale, videoOffsetX, videoOffsetY, { x: screenX, y: screenY, w: screenW, h: screenH }, handZoom, handPanX, handPanY);
         rafRef.current = requestAnimationFrame(draw);
         return;
       }
@@ -532,7 +535,7 @@ function Index() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg, screenX, screenY, screenW, screenH]);
+  }, [device, preset, scale, mockupStretchY, videoMeta, bg, anim, videoFit, videoScale, videoOffsetX, videoOffsetY, frameColor, viewMode, envBg, screenX, screenY, screenW, screenH, handZoom, handPanX, handPanY]);
 
 
   const exportVideo = async () => {
@@ -754,6 +757,62 @@ function Index() {
                       <div className="px-1 py-1 text-center text-white/70">{e.label}</div>
                     </button>
                   ))}
+                </div>
+              </Section>
+            )}
+
+            {/* Hand size & position (hand view only) */}
+            {viewMode === "hand" && (
+              <Section title="Hand size & position" defaultOpen={true}>
+                <div className="space-y-2" data-testid="hand-transform-controls">
+                  <div className="text-[10px] text-white/40">Drag the preview to move &bull; scroll to zoom</div>
+                  <div>
+                    <label className="text-[10px] text-white/40">Zoom: {handZoom.toFixed(2)}x</label>
+                    <input
+                      type="range"
+                      data-testid="hand-zoom-slider"
+                      min={0.4}
+                      max={3}
+                      step={0.01}
+                      value={handZoom}
+                      onChange={(e) => setHandZoom(Number(e.target.value))}
+                      className="h-1 w-full cursor-pointer accent-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-white/40">H position: {Math.round(handPanX * 100)}%</label>
+                    <input
+                      type="range"
+                      data-testid="hand-panx-slider"
+                      min={-1}
+                      max={1}
+                      step={0.005}
+                      value={handPanX}
+                      onChange={(e) => setHandPanX(Number(e.target.value))}
+                      className="h-1 w-full cursor-pointer accent-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-white/40">V position: {Math.round(handPanY * 100)}%</label>
+                    <input
+                      type="range"
+                      data-testid="hand-pany-slider"
+                      min={-1}
+                      max={1}
+                      step={0.005}
+                      value={handPanY}
+                      onChange={(e) => setHandPanY(Number(e.target.value))}
+                      className="h-1 w-full cursor-pointer accent-white"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="hand-transform-reset-btn"
+                    onClick={() => { setHandZoom(1); setHandPanX(0); setHandPanY(0); }}
+                    className="text-[10px] text-white/50 hover:text-white"
+                  >
+                    Reset hand framing
+                  </button>
                 </div>
               </Section>
             )}
@@ -992,13 +1051,19 @@ function Index() {
                     const rect = el.getBoundingClientRect();
                     const startX = e.clientX;
                     const startY = e.clientY;
-                    const startOffX = videoOffsetX;
-                    const startOffY = videoOffsetY;
+                    const isHand = viewMode === "hand";
+                    const startOffX = isHand ? handPanX : videoOffsetX;
+                    const startOffY = isHand ? handPanY : videoOffsetY;
                     const move = (ev: PointerEvent) => {
-                      const dx = ((ev.clientX - startX) / rect.width) * 200;
-                      const dy = ((ev.clientY - startY) / rect.height) * 200;
-                      setVideoOffsetX(Math.max(-100, Math.min(100, Math.round(startOffX + dx))));
-                      setVideoOffsetY(Math.max(-100, Math.min(100, Math.round(startOffY + dy))));
+                      const dx = (ev.clientX - startX) / rect.width;
+                      const dy = (ev.clientY - startY) / rect.height;
+                      if (isHand) {
+                        setHandPanX(startOffX + dx);
+                        setHandPanY(startOffY + dy);
+                      } else {
+                        setVideoOffsetX(Math.max(-100, Math.min(100, Math.round(startOffX + dx * 200))));
+                        setVideoOffsetY(Math.max(-100, Math.min(100, Math.round(startOffY + dy * 200))));
+                      }
                     };
                     const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
                     window.addEventListener("pointermove", move);
@@ -1006,7 +1071,11 @@ function Index() {
                   }}
                   onWheel={(e) => {
                     e.preventDefault();
-                    setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
+                    if (viewMode === "hand") {
+                      setHandZoom((z) => Math.max(0.4, Math.min(3, +(z - e.deltaY * 0.0015).toFixed(3))));
+                    } else {
+                      setVideoScale((s) => Math.max(0.5, Math.min(3, +(s - e.deltaY * 0.002).toFixed(2))));
+                    }
                   }}
                 />
               ) : (

@@ -229,6 +229,9 @@ export function drawHandView(
   videoOffsetX: number,
   videoOffsetY: number,
   screenOverride?: ScreenOverride,
+  handZoom = 1,
+  handPanX = 0,
+  handPanY = 0,
 ) {
   const SCREEN = screenOverride ?? DEFAULT_SCREEN;
   const env = ENVIRONMENTS.find((e) => e.id === envId) ?? ENVIRONMENTS[0];
@@ -262,27 +265,29 @@ export function drawHandView(
   const hand = getKeyedHand(handImg);
   if (!hand) return;
 
-  // Uniform scale (never stretched): frame the keyed subject, arm running off the bottom.
-  const fit = Math.min((cw * 1.04) / hand.bw, (ch * 1.02) / hand.bh);
+  // Uniform scale (never stretched): frame the whole keyed subject, then apply the
+  // user's zoom / pan so nothing gets clipped unintentionally.
+  const baseFit = Math.min((cw * 0.98) / hand.bw, (ch * 1.0) / hand.bh);
+  const fit = baseFit * handZoom;
   const drawW = hand.canvas.width * fit;
   const drawH = hand.canvas.height * fit;
-  const handX = cw / 2 - (hand.bx + hand.bw / 2) * fit;
-  const handY = ch - (hand.by + hand.bh) * fit;
+  const handX = cw / 2 - (hand.bx + hand.bw / 2) * fit + handPanX * cw;
+  const handY = ch - (hand.by + hand.bh) * fit + handPanY * ch;
 
   // --- Natural handheld motion: slow drift + breathing + micro tremor ---
   const driftX =
     Math.sin(time * 0.53) * 1 + Math.sin(time * 0.31 + 1.3) * 0.55 +
-    Math.sin(time * 3.1) * 0.10 + Math.sin(time * 5.7 + 0.7) * 0.05;
+    Math.sin(time * 3.1) * 0.14 + Math.sin(time * 5.7 + 0.7) * 0.07;
   const driftY =
     Math.sin(time * 0.47 + 0.6) * 1 + Math.sin(time * 0.24 + 2.1) * 0.6 +
-    Math.sin(time * 2.7 + 1.1) * 0.10 + Math.sin(time * 6.3) * 0.05;
+    Math.sin(time * 2.7 + 1.1) * 0.14 + Math.sin(time * 6.3) * 0.07;
   const rot =
-    Math.sin(time * 0.41) * 0.0055 + Math.sin(time * 0.27 + 2.0) * 0.003 +
-    Math.sin(time * 4.3 + 0.4) * 0.0004;
-  const breathe = 1 + Math.sin(time * 0.37) * 0.004;
+    Math.sin(time * 0.41) * 0.007 + Math.sin(time * 0.27 + 2.0) * 0.0038 +
+    Math.sin(time * 4.3 + 0.4) * 0.0006;
+  const breathe = 1 + Math.sin(time * 0.37) * 0.005;
 
   ctx.save();
-  ctx.translate(cw / 2 + driftX * cw * 0.006, ch / 2 + driftY * ch * 0.005);
+  ctx.translate(cw / 2 + driftX * cw * 0.008, ch / 2 + driftY * ch * 0.006);
   ctx.rotate(rot);
   ctx.scale(breathe, breathe);
   ctx.translate(-cw / 2, -ch / 2);
