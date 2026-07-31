@@ -188,6 +188,7 @@ function Index() {
   const timeUpdateRef = useRef<number>(0);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const isExportingRef = useRef(false);
 
   useEffect(() => { preloadHandViewImages(); }, []);
 
@@ -233,11 +234,17 @@ function Index() {
       if (!isSeeking) setCurrentTime(video.currentTime);
     };
     video.addEventListener("timeupdate", onTime);
-    // More frequent updates via RAF for smooth seek bar
+    // RAF-driven updates for sub-frame seek bar precision
     let raf = 0;
+    let lastReported = 0;
     const tick = () => {
       if (!isSeeking && video && !video.paused) {
-        setCurrentTime(video.currentTime);
+        const t = video.currentTime;
+        // Only set state when the value visually changes (tenths of a second)
+        if (Math.abs(t - lastReported) >= 0.05) {
+          lastReported = t;
+          setCurrentTime(t);
+        }
       }
       raf = requestAnimationFrame(tick);
     };
@@ -331,16 +338,35 @@ function Index() {
     // Find the last keyframe whose timestamp is <= the current video time. Since the
     // list is kept sorted, this is the keyframe that is "active" right now.
     let active: ZoomKeyframe | null = null;
-    for (const kf of keyframes) {
-      if (kf.time <= videoTime) active = kf;
-      else break;
+    let nextKf: ZoomKeyframe | null = null;
+    for (let i = 0; i < keyframes.length; i++) {
+      if (keyframes[i].time <= videoTime) {
+        active = keyframes[i];
+      } else {
+        if (active !== null && nextKf === null) nextKf = keyframes[i];
+        break;
+      }
     }
     // Before the first keyframe's time, always show the normal/default framing (no zoom).
     if (!active) {
       return { vScale: 1, vOffX: 0, vOffY: 0, hZoom: 1, hPanX: 0, hPanY: 0 };
     }
-    // From an active keyframe's time onward (until the next one takes over), use its
-    // captured zoom values.
+    // If we are past the LAST keyframe (no next keyframe exists), show the live slider
+    // values so the user can preview the zoom they're about to lock next. This makes
+    // the sliders responsive in the "editing zone" past the last locked point.
+    // During export, however, the last keyframe stays locked for the rest of the video.
+    if (!nextKf && active === keyframes[keyframes.length - 1] && !isExportingRef.current) {
+      return {
+        vScale: live.scale,
+        vOffX: live.offX,
+        vOffY: live.offY,
+        hZoom: live.handZoom,
+        hPanX: live.handPanX,
+        hPanY: live.handPanY,
+      };
+    }
+    // Between two keyframes, use the active keyframe's captured values rigidly
+    // (this is the locked behavior that gets baked into the export).
     return {
       vScale: active.scale,
       vOffX: active.offX,
@@ -751,6 +777,7 @@ function Index() {
     setRecording(true);
     setProgress(0);
     setResult(null);
+    isExportingRef.current = true;
 
     try {
       const transparent = viewMode !== "hand" && bg === "transparent";
@@ -864,6 +891,7 @@ function Index() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      isExportingRef.current = false;
       if (video) { video.loop = true; video.muted = true; }
       setRecording(false);
       setProgress(0);
@@ -1446,85 +1474,132 @@ function Index() {
 
             {/* Video Player Controls */}
             {videoUrl && videoMeta && (
-              <div className="w-full mt-3 rounded-xl bg-white/[0.06] border border-white/10 p-3 space-y-3">
+              <div className="w-full mt-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur p-4 space-y-4">
+                {/* Seek bar (top, full width, bigger hit area) */}
+                <div className="relative group pt-1">
+                  <div className="h-2 rounded-full bg-white/[0.08] overflow-hidden shadow-inner">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-white/80 to-white/60 transition-[width] duration-[50ms]"
+                      style={{ width: `${videoMeta.d > 0 ? (currentTime / videoMeta.d) * 100 : 0}%` }}
+                    />
+                  </div>
+                  {/* Playhead thumb */}
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md shadow-black/30 border-2 border-white/90 transition-[left] duration-[50ms] pointer-events-none"
+                    style={{ left: `calc(${videoMeta.d > 0 ? (currentTime / videoMeta.d) * 100 : 0}% - 7px)`, top: '9px' }}
+                  />
+                  {/* Zoom keyframe markers */}
+                  {videoMeta.d > 0 && zoomKeyframes.map((kf) => (
+                    <div
+                      key={kf.id}
+                      className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-sm rotate-45 bg-amber-400 border border-amber-500 shadow shadow-amber-400/30"
+                      style={{ left: `calc(${(kf.time / videoMeta.d) * 100}% - 6px)`, top: '9px' }}
+                      title={`Zoom locked at ${formatTime(kf.time)}`}
+                    />
+                  ))}
+                  <input
+                    type="range"
+                    min={0}
+                    max={videoMeta.d || 1}
+                    step={0.001}
+                    value={currentTime}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onPointerDown={() => setIsSeeking(true)}
+                    onPointerUp={() => setIsSeeking(false)}
+                    onChange={(e) => handleSeek(parseFloat(e.target.value))}
+                  />
+                </div>
+
                 {/* Play/Pause + Time + Duration */}
                 <div className="flex items-center gap-3">
                   <button
                     onClick={togglePlayPause}
-                    className="flex-shrink-0 w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
+                    className="flex-shrink-0 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all shadow-sm"
                     title={isPlaying ? "Pause" : "Play"}
                   >
                     {isPlaying ? (
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="white">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="white">
                         <rect x="3" y="2" width="4" height="12" rx="1" />
                         <rect x="9" y="2" width="4" height="12" rx="1" />
                       </svg>
                     ) : (
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="white">
-                        <path d="M4 2.5v11l10-5.5L4 2.5z" />
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="white">
+                        <path d="M4 2v12l10-6L4 2z" />
                       </svg>
                     )}
                   </button>
-                  <span className="text-[11px] text-white/60 tabular-nums flex-shrink-0">
-                    {formatTime(currentTime)} / {formatTime(videoMeta.d)}
-                  </span>
-                  {/* Seek bar */}
-                  <div className="flex-1 relative group">
-                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                      <div
-                        className="h-full bg-white/70 rounded-full transition-[width] duration-75"
-                        style={{ width: `${videoMeta.d > 0 ? (currentTime / videoMeta.d) * 100 : 0}%` }}
-                      />
-                    </div>
-                    {/* Zoom keyframe markers */}
-                    {videoMeta.d > 0 && zoomKeyframes.map((kf) => (
-                      <div
-                        key={kf.id}
-                        className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-amber-600 shadow-sm shadow-amber-400/40"
-                        style={{ left: `${(kf.time / videoMeta.d) * 100}%` }}
-                        title={`Zoom locks at ${formatTime(kf.time)}`}
-                      />
-                    ))}
-                    <input
-                      type="range"
-                      min={0}
-                      max={videoMeta.d || 1}
-                      step={0.01}
-                      value={currentTime}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onPointerDown={() => setIsSeeking(true)}
-                      onPointerUp={() => setIsSeeking(false)}
-                      onChange={(e) => handleSeek(parseFloat(e.target.value))}
-                    />
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-[13px] font-mono text-white/90 tabular-nums tracking-tight">
+                      {formatTime(currentTime)}
+                    </span>
+                    <span className="text-[11px] text-white/40">/</span>
+                    <span className="text-[11px] font-mono text-white/40 tabular-nums">
+                      {formatTime(videoMeta.d)}
+                    </span>
+                  </div>
+                  {/* Frame skip buttons */}
+                  <div className="ml-auto flex items-center gap-1">
+                    <button
+                      onClick={() => handleSeek(Math.max(0, currentTime - 1 / 30))}
+                      className="w-7 h-7 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80"
+                      title="Back 1 frame"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M6 1L2 5l4 4V1z"/></svg>
+                    </button>
+                    <button
+                      onClick={() => handleSeek(Math.min(videoMeta.d, currentTime + 1 / 30))}
+                      className="w-7 h-7 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80"
+                      title="Forward 1 frame"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M4 1l4 4-4 4V1z"/></svg>
+                    </button>
+                    <button
+                      onClick={() => handleSeek(Math.max(0, currentTime - 1))}
+                      className="w-7 h-7 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80 text-[10px] font-medium"
+                      title="Back 1 second"
+                    >
+                      -1s
+                    </button>
+                    <button
+                      onClick={() => handleSeek(Math.min(videoMeta.d, currentTime + 1))}
+                      className="w-7 h-7 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80 text-[10px] font-medium"
+                      title="Forward 1 second"
+                    >
+                      +1s
+                    </button>
                   </div>
                 </div>
 
                 {/* Zoom Lock Section — supports multiple keyframes across the video */}
-                <div className="pt-1 border-t border-white/[0.06] space-y-2">
+                <div className="pt-3 border-t border-white/[0.06] space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/50 flex-shrink-0">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                      </svg>
-                      <span className="text-[11px] text-white/50">Zoom Lock</span>
-                      {zoomKeyframes.length > 0 && (
-                        <span className="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
-                          {zoomKeyframes.length} {zoomKeyframes.length === 1 ? "point" : "points"}
-                        </span>
-                      )}
+                      <div className="w-6 h-6 rounded-md bg-amber-500/15 flex items-center justify-center flex-shrink-0">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[12px] text-white/80 font-medium leading-tight">Zoom Lock</span>
+                        {zoomKeyframes.length > 0 && (
+                          <span className="text-[10px] text-white/40 leading-tight">
+                            {zoomKeyframes.length} {zoomKeyframes.length === 1 ? "keyframe" : "keyframes"} set
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={captureZoomLock}
-                        className="text-[11px] px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition font-medium"
+                        className="text-[11px] px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 active:scale-95 transition-all font-medium shadow-sm"
                       >
-                        Lock at {formatTime(currentTime)}
+                        + Lock at {formatTime(currentTime)}
                       </button>
                       {zoomKeyframes.length > 0 && (
                         <button
                           onClick={clearZoomKeyframes}
-                          className="text-[11px] px-2.5 py-1.5 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 transition"
+                          className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white/[0.05] text-white/40 hover:bg-red-500/20 hover:text-red-300 transition-all"
                         >
                           Clear all
                         </button>
@@ -1532,27 +1607,36 @@ function Index() {
                     </div>
                   </div>
                   {zoomKeyframes.length > 0 && (
-                    <div className="space-y-1">
-                      {[...zoomKeyframes].sort((a, b) => a.time - b.time).map((kf, idx) => (
-                        <div key={kf.id} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.04] px-2.5 py-1.5">
-                          <button
-                            onClick={() => handleSeek(kf.time)}
-                            className="text-[11px] text-white/70 hover:text-white transition tabular-nums"
-                            title="Jump to this point"
-                          >
-                            #{idx + 1} &bull; Locked from {formatTime(kf.time)} &bull; {kf.scale.toFixed(2)}x
-                          </button>
-                          <button
-                            onClick={() => removeZoomKeyframe(kf.id)}
-                            className="text-[10px] text-white/40 hover:text-red-300 transition flex-shrink-0"
-                            title="Remove this zoom lock point"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                      <p className="text-[10px] text-white/30 italic">
-                        Seek to a new time, adjust zoom, then lock again to add another point.
+                    <div className="space-y-1.5">
+                      {/* Default zone indicator */}
+                      <div className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-2 border border-white/[0.04]">
+                        <div className="w-2 h-2 rounded-full bg-white/30 flex-shrink-0" />
+                        <span className="text-[11px] text-white/40 flex-1">Default zoom (0:00.0 → {formatTime([...zoomKeyframes].sort((a, b) => a.time - b.time)[0].time)})</span>
+                      </div>
+                      {[...zoomKeyframes].sort((a, b) => a.time - b.time).map((kf, idx, sorted) => {
+                        const nextTime = sorted[idx + 1]?.time ?? videoMeta.d;
+                        return (
+                          <div key={kf.id} className="flex items-center gap-2 rounded-lg bg-amber-500/[0.06] px-3 py-2 border border-amber-500/[0.12] group">
+                            <div className="w-2 h-2 rounded-sm rotate-45 bg-amber-400 flex-shrink-0" />
+                            <button
+                              onClick={() => handleSeek(kf.time)}
+                              className="text-[11px] text-white/70 hover:text-white transition tabular-nums flex-1 text-left font-mono"
+                              title="Jump to this keyframe"
+                            >
+                              {formatTime(kf.time)} → {formatTime(nextTime)} &bull; {kf.scale.toFixed(2)}x
+                            </button>
+                            <button
+                              onClick={() => removeZoomKeyframe(kf.id)}
+                              className="text-[10px] text-white/30 hover:text-red-400 transition flex-shrink-0 opacity-0 group-hover:opacity-100"
+                              title="Remove this keyframe"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                            </button>
+                          </div>
+                        );
+                      })}
+                      <p className="text-[10px] text-white/25 pt-1">
+                        Seek → adjust zoom → click Lock to add a keyframe. Each keyframe applies until the next one.
                       </p>
                     </div>
                   )}
@@ -1587,7 +1671,8 @@ function Index() {
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  const ms = Math.floor((seconds % 1) * 10);
+  return `${m}:${s.toString().padStart(2, "0")}.${ms}`;
 }
 
 function seekVideo(video: HTMLVideoElement, time: number) {
