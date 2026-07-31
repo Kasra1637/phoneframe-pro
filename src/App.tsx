@@ -306,17 +306,13 @@ function Index() {
         hPanY: live.handPanY,
       };
     }
-    // Before the lock time, use the live slider values (what the user currently has set)
-    // so the exported/previewed video reflects the user's current zoom for the first portion.
+    // Before the lock time, always show the normal/default framing (no zoom).
+    // The locked zoom is a snapshot of the live sliders taken at lock time, so the
+    // live values are identical to the locked values right after locking — using them
+    // here would make the entire video appear zoomed instead of just the portion
+    // from the lock time onward.
     if (videoTime < lock.time) {
-      return {
-        vScale: live.scale,
-        vOffX: live.offX,
-        vOffY: live.offY,
-        hZoom: live.handZoom,
-        hPanX: live.handPanX,
-        hPanY: live.handPanY,
-      };
+      return { vScale: 1, vOffX: 0, vOffY: 0, hZoom: 1, hPanX: 0, hPanY: 0 };
     }
     // From the lock time onward, use the locked (captured) zoom values.
     return {
