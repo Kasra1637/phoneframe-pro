@@ -188,7 +188,6 @@ function Index() {
   const timeUpdateRef = useRef<number>(0);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const isExportingRef = useRef(false);
 
   useEffect(() => { preloadHandViewImages(); }, []);
 
@@ -335,38 +334,24 @@ function Index() {
         hPanY: live.handPanY,
       };
     }
-    // Find the last keyframe whose timestamp is <= the current video time. Since the
-    // list is kept sorted, this is the keyframe that is "active" right now.
+    // Find the last keyframe whose timestamp is <= the current video time.
+    // The list is kept sorted, so we walk forward until we pass the current time.
     let active: ZoomKeyframe | null = null;
-    let nextKf: ZoomKeyframe | null = null;
     for (let i = 0; i < keyframes.length; i++) {
       if (keyframes[i].time <= videoTime) {
         active = keyframes[i];
       } else {
-        if (active !== null && nextKf === null) nextKf = keyframes[i];
         break;
       }
     }
-    // Before the first keyframe's time, always show the normal/default framing (no zoom).
+    // Before the first keyframe's time, show the normal/default framing (no zoom).
     if (!active) {
       return { vScale: 1, vOffX: 0, vOffY: 0, hZoom: 1, hPanX: 0, hPanY: 0 };
     }
-    // If we are past the LAST keyframe (no next keyframe exists), show the live slider
-    // values so the user can preview the zoom they're about to lock next. This makes
-    // the sliders responsive in the "editing zone" past the last locked point.
-    // During export, however, the last keyframe stays locked for the rest of the video.
-    if (!nextKf && active === keyframes[keyframes.length - 1] && !isExportingRef.current) {
-      return {
-        vScale: live.scale,
-        vOffX: live.offX,
-        vOffY: live.offY,
-        hZoom: live.handZoom,
-        hPanX: live.handPanX,
-        hPanY: live.handPanY,
-      };
-    }
-    // Between two keyframes, use the active keyframe's captured values rigidly
-    // (this is the locked behavior that gets baked into the export).
+    // From the active keyframe's time onward (until the next one takes over),
+    // always use the captured locked values. This ensures each keyframe's zoom
+    // is displayed correctly in both preview and export, regardless of the
+    // current slider positions.
     return {
       vScale: active.scale,
       vOffX: active.offX,
@@ -777,7 +762,6 @@ function Index() {
     setRecording(true);
     setProgress(0);
     setResult(null);
-    isExportingRef.current = true;
 
     try {
       const transparent = viewMode !== "hand" && bg === "transparent";
@@ -891,7 +875,6 @@ function Index() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      isExportingRef.current = false;
       if (video) { video.loop = true; video.muted = true; }
       setRecording(false);
       setProgress(0);
@@ -1474,44 +1457,123 @@ function Index() {
 
             {/* Video Player Controls */}
             {videoUrl && videoMeta && (
-              <div className="w-full mt-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur p-4 space-y-4">
-                {/* Seek bar (top, full width, bigger hit area) */}
-                <div className="relative group pt-1">
-                  <div className="h-2 rounded-full bg-white/[0.08] overflow-hidden shadow-inner">
+              <div className="w-full mt-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur p-4 space-y-3">
+
+                {/* === TIMELINE === */}
+                <div className="space-y-1">
+                  {/* Time ruler with tick marks */}
+                  <div className="relative h-4 select-none">
+                    {(() => {
+                      const dur = videoMeta.d;
+                      if (dur <= 0) return null;
+                      // Decide tick interval: aim for ~6-10 visible ticks
+                      let interval = 1;
+                      if (dur > 60) interval = 10;
+                      else if (dur > 30) interval = 5;
+                      else if (dur > 10) interval = 2;
+                      else if (dur > 5) interval = 1;
+                      else interval = 0.5;
+                      const ticks: number[] = [];
+                      for (let t = 0; t <= dur; t += interval) ticks.push(t);
+                      if (ticks[ticks.length - 1] < dur - interval * 0.3) ticks.push(dur);
+                      return ticks.map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => handleSeek(t)}
+                          className="absolute top-0 flex flex-col items-center cursor-pointer group"
+                          style={{ left: `${(t / dur) * 100}%`, transform: 'translateX(-50%)' }}
+                        >
+                          <div className="w-px h-2 bg-white/20 group-hover:bg-white/50 transition" />
+                          <span className="text-[8px] font-mono text-white/30 group-hover:text-white/60 transition leading-none mt-0.5 tabular-nums">
+                            {formatTime(t)}
+                          </span>
+                        </button>
+                      ));
+                    })()}
+                  </div>
+
+                  {/* Keyframe zone visualization (colored segments) */}
+                  {zoomKeyframes.length > 0 && (
+                    <div className="relative h-3 rounded-full overflow-hidden bg-white/[0.04]">
+                      {(() => {
+                        const dur = videoMeta.d;
+                        const sorted = [...zoomKeyframes].sort((a, b) => a.time - b.time);
+                        const segments: { start: number; end: number; zoom: number; idx: number }[] = [];
+                        sorted.forEach((kf, i) => {
+                          const end = sorted[i + 1]?.time ?? dur;
+                          segments.push({ start: kf.time, end, zoom: kf.scale, idx: i });
+                        });
+                        return segments.map((seg) => (
+                          <div
+                            key={seg.idx}
+                            className="absolute inset-y-0 bg-amber-400/20 border-l border-amber-400/40"
+                            style={{
+                              left: `${(seg.start / dur) * 100}%`,
+                              width: `${((seg.end - seg.start) / dur) * 100}%`,
+                            }}
+                            title={`${formatTime(seg.start)} → ${formatTime(seg.end)}: ${seg.zoom.toFixed(2)}x`}
+                          >
+                            <span className="absolute inset-0 flex items-center justify-center text-[7px] font-mono text-amber-300/70 pointer-events-none">
+                              {seg.zoom.toFixed(1)}x
+                            </span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Main scrubber track */}
+                  <div className="relative h-6 cursor-pointer group"
+                    onPointerDown={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                      handleSeek(pct * videoMeta.d);
+                      setIsSeeking(true);
+
+                      const onMove = (ev: PointerEvent) => {
+                        const p = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+                        handleSeek(p * videoMeta.d);
+                      };
+                      const onUp = () => {
+                        setIsSeeking(false);
+                        window.removeEventListener('pointermove', onMove);
+                        window.removeEventListener('pointerup', onUp);
+                      };
+                      window.addEventListener('pointermove', onMove);
+                      window.addEventListener('pointerup', onUp);
+                    }}
+                  >
+                    {/* Track background */}
+                    <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-2.5 rounded-full bg-white/[0.06] border border-white/[0.06]" />
+                    {/* Progress fill */}
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-white/80 to-white/60 transition-[width] duration-[50ms]"
+                      className="absolute top-1/2 -translate-y-1/2 left-0 h-2.5 rounded-full bg-gradient-to-r from-white/60 to-white/40"
                       style={{ width: `${videoMeta.d > 0 ? (currentTime / videoMeta.d) * 100 : 0}%` }}
                     />
-                  </div>
-                  {/* Playhead thumb */}
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md shadow-black/30 border-2 border-white/90 transition-[left] duration-[50ms] pointer-events-none"
-                    style={{ left: `calc(${videoMeta.d > 0 ? (currentTime / videoMeta.d) * 100 : 0}% - 7px)`, top: '9px' }}
-                  />
-                  {/* Zoom keyframe markers */}
-                  {videoMeta.d > 0 && zoomKeyframes.map((kf) => (
+                    {/* Keyframe diamond markers */}
+                    {videoMeta.d > 0 && zoomKeyframes.map((kf) => (
+                      <div
+                        key={kf.id}
+                        className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-sm rotate-45 bg-amber-400 border border-amber-500 shadow shadow-amber-400/40 pointer-events-none z-10"
+                        style={{ left: `calc(${(kf.time / videoMeta.d) * 100}% - 6px)` }}
+                      />
+                    ))}
+                    {/* Playhead */}
                     <div
-                      key={kf.id}
-                      className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-sm rotate-45 bg-amber-400 border border-amber-500 shadow shadow-amber-400/30"
-                      style={{ left: `calc(${(kf.time / videoMeta.d) * 100}% - 6px)`, top: '9px' }}
-                      title={`Zoom locked at ${formatTime(kf.time)}`}
+                      className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white shadow-lg shadow-black/40 border-2 border-white pointer-events-none z-20"
+                      style={{ left: `calc(${videoMeta.d > 0 ? (currentTime / videoMeta.d) * 100 : 0}% - 8px)` }}
                     />
-                  ))}
-                  <input
-                    type="range"
-                    min={0}
-                    max={videoMeta.d || 1}
-                    step={0.001}
-                    value={currentTime}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    onPointerDown={() => setIsSeeking(true)}
-                    onPointerUp={() => setIsSeeking(false)}
-                    onChange={(e) => handleSeek(parseFloat(e.target.value))}
-                  />
+                  </div>
+
+                  {/* Time labels below track */}
+                  <div className="flex items-center justify-between px-0.5">
+                    <span className="text-[9px] font-mono text-white/30 tabular-nums">0:00.0</span>
+                    <span className="text-[9px] font-mono text-white/30 tabular-nums">{formatTime(videoMeta.d)}</span>
+                  </div>
                 </div>
 
-                {/* Play/Pause + Time + Duration */}
-                <div className="flex items-center gap-3">
+                {/* Play/Pause + Current Time + Navigation */}
+                <div className="flex items-center gap-3 pt-1">
                   <button
                     onClick={togglePlayPause}
                     className="flex-shrink-0 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all shadow-sm"
@@ -1528,41 +1590,41 @@ function Index() {
                       </svg>
                     )}
                   </button>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-[13px] font-mono text-white/90 tabular-nums tracking-tight">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-[15px] font-mono text-white/90 tabular-nums tracking-tight font-medium">
                       {formatTime(currentTime)}
                     </span>
-                    <span className="text-[11px] text-white/40">/</span>
-                    <span className="text-[11px] font-mono text-white/40 tabular-nums">
+                    <span className="text-[11px] text-white/30 font-mono">/</span>
+                    <span className="text-[12px] font-mono text-white/35 tabular-nums">
                       {formatTime(videoMeta.d)}
                     </span>
                   </div>
-                  {/* Frame skip buttons */}
+                  {/* Frame navigation */}
                   <div className="ml-auto flex items-center gap-1">
                     <button
-                      onClick={() => handleSeek(Math.max(0, currentTime - 1 / 30))}
-                      className="w-7 h-7 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80"
-                      title="Back 1 frame"
+                      onClick={() => handleSeek(Math.max(0, currentTime - 1))}
+                      className="h-7 px-2 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80 text-[10px] font-mono"
+                      title="Back 1 second"
                     >
-                      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M6 1L2 5l4 4V1z"/></svg>
+                      −1s
+                    </button>
+                    <button
+                      onClick={() => handleSeek(Math.max(0, currentTime - 1 / 30))}
+                      className="h-7 px-1.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80"
+                      title="Back 1 frame (1/30s)"
+                    >
+                      <svg width="8" height="10" viewBox="0 0 8 10" fill="currentColor"><path d="M6 0L1 5l5 5V0z"/></svg>
                     </button>
                     <button
                       onClick={() => handleSeek(Math.min(videoMeta.d, currentTime + 1 / 30))}
-                      className="w-7 h-7 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80"
-                      title="Forward 1 frame"
+                      className="h-7 px-1.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80"
+                      title="Forward 1 frame (1/30s)"
                     >
-                      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M4 1l4 4-4 4V1z"/></svg>
-                    </button>
-                    <button
-                      onClick={() => handleSeek(Math.max(0, currentTime - 1))}
-                      className="w-7 h-7 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80 text-[10px] font-medium"
-                      title="Back 1 second"
-                    >
-                      -1s
+                      <svg width="8" height="10" viewBox="0 0 8 10" fill="currentColor"><path d="M2 0l5 5-5 5V0z"/></svg>
                     </button>
                     <button
                       onClick={() => handleSeek(Math.min(videoMeta.d, currentTime + 1))}
-                      className="w-7 h-7 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80 text-[10px] font-medium"
+                      className="h-7 px-2 rounded-md bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition text-white/50 hover:text-white/80 text-[10px] font-mono"
                       title="Forward 1 second"
                     >
                       +1s
@@ -1570,7 +1632,7 @@ function Index() {
                   </div>
                 </div>
 
-                {/* Zoom Lock Section — supports multiple keyframes across the video */}
+                {/* Zoom Lock Section */}
                 <div className="pt-3 border-t border-white/[0.06] space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
@@ -1609,21 +1671,24 @@ function Index() {
                   {zoomKeyframes.length > 0 && (
                     <div className="space-y-1.5">
                       {/* Default zone indicator */}
-                      <div className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-2 border border-white/[0.04]">
-                        <div className="w-2 h-2 rounded-full bg-white/30 flex-shrink-0" />
-                        <span className="text-[11px] text-white/40 flex-1">Default zoom (0:00.0 → {formatTime([...zoomKeyframes].sort((a, b) => a.time - b.time)[0].time)})</span>
-                      </div>
+                      {[...zoomKeyframes].sort((a, b) => a.time - b.time)[0].time > 0.01 && (
+                        <div className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-2 border border-white/[0.04]">
+                          <div className="w-2 h-2 rounded-full bg-white/30 flex-shrink-0" />
+                          <span className="text-[11px] text-white/40 flex-1 font-mono">0:00.0 → {formatTime([...zoomKeyframes].sort((a, b) => a.time - b.time)[0].time)} &bull; default (1.00x)</span>
+                        </div>
+                      )}
                       {[...zoomKeyframes].sort((a, b) => a.time - b.time).map((kf, idx, sorted) => {
                         const nextTime = sorted[idx + 1]?.time ?? videoMeta.d;
+                        const isActive = currentTime >= kf.time && (sorted[idx + 1] ? currentTime < sorted[idx + 1].time : true);
                         return (
-                          <div key={kf.id} className="flex items-center gap-2 rounded-lg bg-amber-500/[0.06] px-3 py-2 border border-amber-500/[0.12] group">
-                            <div className="w-2 h-2 rounded-sm rotate-45 bg-amber-400 flex-shrink-0" />
+                          <div key={kf.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 border group transition-all ${isActive ? 'bg-amber-500/[0.12] border-amber-400/30' : 'bg-amber-500/[0.04] border-amber-500/[0.08]'}`}>
+                            <div className={`w-2 h-2 rounded-sm rotate-45 flex-shrink-0 transition ${isActive ? 'bg-amber-300' : 'bg-amber-400/60'}`} />
                             <button
                               onClick={() => handleSeek(kf.time)}
                               className="text-[11px] text-white/70 hover:text-white transition tabular-nums flex-1 text-left font-mono"
                               title="Jump to this keyframe"
                             >
-                              {formatTime(kf.time)} → {formatTime(nextTime)} &bull; {kf.scale.toFixed(2)}x
+                              {formatTime(kf.time)} → {formatTime(nextTime)} &bull; {kf.scale.toFixed(2)}x zoom
                             </button>
                             <button
                               onClick={() => removeZoomKeyframe(kf.id)}
@@ -1635,8 +1700,8 @@ function Index() {
                           </div>
                         );
                       })}
-                      <p className="text-[10px] text-white/25 pt-1">
-                        Seek → adjust zoom → click Lock to add a keyframe. Each keyframe applies until the next one.
+                      <p className="text-[10px] text-white/25 pt-0.5">
+                        Pause → seek to exact time → adjust zoom → Lock. Each segment displays its locked zoom in the preview and export.
                       </p>
                     </div>
                   )}
