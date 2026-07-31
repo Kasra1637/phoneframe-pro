@@ -306,9 +306,19 @@ function Index() {
         hPanY: live.handPanY,
       };
     }
+    // Before the lock time, use the live slider values (what the user currently has set)
+    // so the exported/previewed video reflects the user's current zoom for the first portion.
     if (videoTime < lock.time) {
-      return { vScale: 1, vOffX: 0, vOffY: 0, hZoom: 1, hPanX: 0, hPanY: 0 };
+      return {
+        vScale: live.scale,
+        vOffX: live.offX,
+        vOffY: live.offY,
+        hZoom: live.handZoom,
+        hPanX: live.handPanX,
+        hPanY: live.handPanY,
+      };
     }
+    // From the lock time onward, use the locked (captured) zoom values.
     return {
       vScale: lock.scale,
       vOffX: lock.offX,
