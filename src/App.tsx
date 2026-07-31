@@ -188,6 +188,7 @@ function Index() {
   const timeUpdateRef = useRef<number>(0);
   const audioSrcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const isExportingRef = useRef(false);
 
   useEffect(() => { preloadHandViewImages(); }, []);
 
@@ -337,21 +338,46 @@ function Index() {
     // Find the last keyframe whose timestamp is <= the current video time.
     // The list is kept sorted, so we walk forward until we pass the current time.
     let active: ZoomKeyframe | null = null;
+    let hasNextKeyframe = false;
     for (let i = 0; i < keyframes.length; i++) {
       if (keyframes[i].time <= videoTime) {
         active = keyframes[i];
       } else {
+        hasNextKeyframe = true;
         break;
       }
     }
-    // Before the first keyframe's time, show the normal/default framing (no zoom).
+    // Before the first keyframe's time, show the live slider values so the user
+    // can preview adjustments before locking them.
     if (!active) {
-      return { vScale: 1, vOffX: 0, vOffY: 0, hZoom: 1, hPanX: 0, hPanY: 0 };
+      if (isExportingRef.current) {
+        return { vScale: 1, vOffX: 0, vOffY: 0, hZoom: 1, hPanX: 0, hPanY: 0 };
+      }
+      return {
+        vScale: live.scale,
+        vOffX: live.offX,
+        vOffY: live.offY,
+        hZoom: live.handZoom,
+        hPanX: live.handPanX,
+        hPanY: live.handPanY,
+      };
     }
-    // From the active keyframe's time onward (until the next one takes over),
-    // always use the captured locked values. This ensures each keyframe's zoom
-    // is displayed correctly in both preview and export, regardless of the
-    // current slider positions.
+    // If the playhead is past the LAST keyframe (no subsequent keyframe exists),
+    // show the live slider values during preview so the user can see their
+    // adjustments in real time before locking the next keyframe. During export,
+    // the last keyframe stays locked for the rest of the video.
+    if (!hasNextKeyframe && !isExportingRef.current) {
+      return {
+        vScale: live.scale,
+        vOffX: live.offX,
+        vOffY: live.offY,
+        hZoom: live.handZoom,
+        hPanX: live.handPanX,
+        hPanY: live.handPanY,
+      };
+    }
+    // Between two existing keyframes, use the active keyframe's captured values
+    // rigidly (this is what gets baked into the export).
     return {
       vScale: active.scale,
       vOffX: active.offX,
@@ -762,6 +788,7 @@ function Index() {
     setRecording(true);
     setProgress(0);
     setResult(null);
+    isExportingRef.current = true;
 
     try {
       const transparent = viewMode !== "hand" && bg === "transparent";
@@ -875,6 +902,7 @@ function Index() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      isExportingRef.current = false;
       if (video) { video.loop = true; video.muted = true; }
       setRecording(false);
       setProgress(0);
